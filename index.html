@@ -308,7 +308,18 @@ async function fetchAemet(apiKey) {
 --------------------------------------------------------------------- */
 async function fetchAemetRadar(apiKey) {
   const base = 'https://opendata.aemet.es/opendata/api/red/radar/regional/' + AEMET_RADAR.code;
-  const step1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey));
+  const url = base + '?api_key=' + encodeURIComponent(apiKey);
+  // El WAF de AEMET (F5 BIG-IP) a veces rechaza la 1ª petición a nivel de red
+  // ("Load failed"/"Failed to fetch"), aunque el endpoint y CORS son correctos.
+  // Reintentamos una vez tras una pausa breve antes de rendirnos.
+  let step1;
+  try {
+    step1 = await fetch(url);
+  } catch (e1) {
+    await new Promise(r => setTimeout(r, 800));
+    try { step1 = await fetch(url); }
+    catch (e2) { throw new Error('no se pudo conectar (' + e2.message + '). Reintenta; si persiste, míralo en la consola (F12 → Network).'); }
+  }
   if (!step1.ok) throw new Error('petición inicial falló (' + step1.status + ')');
   const meta = await step1.json();
   // Volcamos SIEMPRE el paso 1 (trae estado/datos/metadatos): así se ve si el
