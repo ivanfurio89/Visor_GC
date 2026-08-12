@@ -434,45 +434,86 @@ async function fetchGrafcan(apiKey) {
     if (loc && inBBox(loc.lat, loc.lon)) gcThings.push({ th, loc });
   }
 
-  // 3) Último valor de cada estación (observations_last por thing).
-  //    Es 1 petición por estación: correcto para un prototipo; cuando esto
-  //    crezca conviene precomputar un JSON estático (GitHub Actions) y que
-  //    el frontend solo lo lea (ver cabecera del archivo).
-  let obsSampleShown = false; // capturamos la 1ª respuesta NO vacía para depurar
-  const results = await Promise.all(gcThings.map(async ({ th, loc }) => {
-    const station = {
+  // Estación base (sin valores) por thing, indexada por id.
+  const stations = new Map();
+  for (const { th, loc } of gcThings) {
+    stations.set(th.id, {
       id: 'grafcan-' + th.id,
       name: loc.name || th.name || ('Estación ' + th.id),
       lat: loc.lat, lon: loc.lon,
       source: 'GRAFCAN',
       ta: null, hr: null, vv: null, dv: null, prec: null, fint: null,
       _rank: {}, // rango del datastream que dejó cada valor (uso interno)
-    };
-    try {
-      const obs = await grafcanGetAll(
-        GRAFCAN_API + 'observations_last/?thing=' + th.id, apiKey, { maxPages: 3 });
-      if (!obsSampleShown && obs.length) {
-        obsSampleShown = true;
-        showRawDebug('observations_last[thing=' + th.id + ']', obs[0]);
-      }
-      for (const o of obs) {
-        const meta = dsMeta.get(grafcanId(o.datastream)) || {};
-        // Si la observación viniera expandida, deducimos del propio texto.
-        const key = meta.key
-          ?? grafcanClassify([o.name, o.observedProperty && o.observedProperty.name].join(' '));
-        if (!key || o.result == null) continue;
-        const rank = meta.rank ?? 2;
-        if (rank < (station._rank[key] ?? 0)) continue; // no pisar avg con max/min
-        station[key] = grafcanToDisplay(key, o.result, meta.unit);
-        station._rank[key] = rank;
-        station.fint = station.fint || o.phenomenonTime || o.resultTime || null;
-      }
-    } catch (_) { /* estación visible en el mapa aunque falle su último dato */ }
-    delete station._rank;
-    return station;
-  }));
+    });
+  }
+
+  // Aplica una observación a la estación que le corresponde (vía datastream).
+  // thingIdHint sirve en el fallback por-estación, donde ya sabemos el thing.
+  function applyObs(o, thingIdHint) {
+    const meta = dsMeta.get(grafcanId(o.datastream)) || {};
+    const st = stations.get(meta.thingId ?? thingIdHint);
+    if (!st) return; // observación de una estación fuera de Gran Canaria
+    const key = meta.key
+      ?? grafcanClassify([o.name, o.observedProperty && o.observedProperty.name].join(' '));
+    if (!key || o.result == null) return;
+    const rank = meta.rank ?? 2;
+    if (rank < (st._rank[key] ?? 0)) return; // no pisar avg/acc con max/min
+    st[key] = grafcanToDisplay(key, o.result, meta.unit);
+    st._rank[key] = rank;
+    st.fint = st.fint || o.phenomenonTime || o.resultTime || null;
+  }
+
+  // 3) Últimos valores. Estrategia A (eficiente): UN barrido global de
+  //    observations_last y lo repartimos por estación (observación ->
+  //    datastream -> thing). Cuando esto crezca conviene precomputar un JSON
+  //    estático (GitHub Actions) y que el frontend solo lo lea.
+  let observations = [];
+  try {
+    observations = await grafcanGetAll(
+      GRAFCAN_API + 'observations_last/?page_size=1000', apiKey, { maxPages: 60 });
+  } catch (_) { /* probamos el fallback por-estación abajo */ }
+  if (observations[0]) showRawDebug('observations_last[global]', observations[0]);
+  const before = [...stations.values()].filter(hasValue).length;
+  for (const o of observations) applyObs(o);
+
+  // Estrategia B (fallback): si el barrido global no aportó valores, pedimos
+  // observations_last?thing= estación por estación.
+  if ([...stations.values()].filter(hasValue).length === before) {
+    let obsSampleShown = false;
+    await Promise.all([...stations.keys()].map(async id => {
+      try {
+        const obs = await grafcanGetAll(
+          GRAFCAN_API + 'observations_last/?thing=' + id, apiKey, { maxPages: 3 });
+        if (!obsSampleShown && obs.length) {
+          obsSampleShown = true;
+          showRawDebug('observations_last[thing=' + id + ']', obs[0]);
+        }
+        for (const o of obs) applyObs(o, id);
+      } catch (_) { /* estación visible aunque falle su último dato */ }
+    }));
+  }
+
+  const results = [...stations.values()];
+  results.forEach(s => delete s._rank);
+
+  // Resumen de diagnóstico: en una sola recarga vemos dónde está el problema
+  // (cobertura del bbox, si llegan observaciones, cuántas estaciones con dato).
+  showRawDebug('GRAFCAN _resumen', {
+    things: things.length,
+    locations: locations.length,
+    datastreams: datastreams.length,
+    estaciones_en_GranCanaria: results.length,
+    observations_last_global: observations.length,
+    estaciones_con_algun_valor: results.filter(hasValue).length,
+    bbox: GC_BBOX,
+  });
 
   return results;
+}
+
+// ¿La estación tiene al menos un valor medido?
+function hasValue(s) {
+  return s.ta != null || s.hr != null || s.vv != null || s.dv != null || s.prec != null;
 }
 
 // Acumula una muestra por endpoint para poder inspeccionar/compartir el JSON
