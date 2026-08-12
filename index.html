@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visor de Estaciones · Gran Canaria</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+  :root{
+    --bg-0:#15130f;
+    --bg-1:#1d1a15;
+    --bg-2:#26221b;
+    --line:#3a3327;
+    --ember:#d9622b;
+    --ember-dim:#8a4420;
+    --ceniza:#8f8a7c;
+    --hueso:#f2ede2;
+    --verde:#4f8f72;
+    --font-display: 'Space Grotesk', 'Segoe UI', sans-serif;
+    --font-body: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg-0);font-family:var(--font-body);color:var(--hueso);}
+  #app{display:flex;height:100vh;width:100%;}
+
+  /* ---------- Sidebar ---------- */
+  #sidebar{
+    width:340px;min-width:340px;
+    background:var(--bg-1);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;
+    overflow-y:auto;
+  }
+  .brand{
+    padding:20px 20px 16px 20px;
+    border-bottom:1px solid var(--line);
+    background:
+      linear-gradient(180deg, var(--bg-2), var(--bg-1));
+    position:relative;
+  }
+  .brand::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:-1px; height:2px;
+    background:linear-gradient(90deg, var(--ember), transparent 70%);
+  }
+  .eyebrow{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.12em;
+    color:var(--ember); text-transform:uppercase; margin-bottom:6px;
+  }
+  .brand h1{
+    font-family:var(--font-display); font-size:20px; font-weight:600;
+    margin:0 0 4px 0; line-height:1.25;
+  }
+  .brand p{margin:0;font-size:12.5px;color:var(--ceniza);}
+
+  .panel{padding:16px 20px;border-bottom:1px solid var(--line);}
+  .panel h2{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ceniza); margin:0 0 12px 0;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .panel h2 .count{color:var(--hueso);}
+
+  label.field{display:block; font-size:12px; color:var(--ceniza); margin-bottom:5px;}
+  input[type=text], input[type=password], select{
+    width:100%; background:var(--bg-0); border:1px solid var(--line);
+    color:var(--hueso); border-radius:6px; padding:8px 10px; font-size:13px;
+    font-family:var(--font-mono); margin-bottom:10px;
+  }
+  input:focus, select:focus{outline:none; border-color:var(--ember);}
+
+  button{
+    font-family:var(--font-body); font-weight:600; font-size:13px;
+    border-radius:6px; border:1px solid var(--ember-dim);
+    background:var(--ember); color:#1c1108; padding:9px 12px;
+    cursor:pointer; width:100%;
+  }
+  button:hover{background:#e97a45;}
+  button:disabled{background:var(--bg-2); color:var(--ceniza); border-color:var(--line); cursor:not-allowed;}
+  button.ghost{
+    background:transparent; color:var(--hueso); border:1px solid var(--line);
+    margin-top:8px;
+  }
+  button.ghost:hover{border-color:var(--ember);}
+
+  .source-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 0; font-size:13px; border-bottom:1px solid var(--bg-2);
+  }
+  .source-row:last-child{border-bottom:none;}
+  .source-row .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px;}
+  .dot.aemet{background:#5aa9e6;}
+  .dot.grafcan{background:var(--verde);}
+  .source-row .n{font-family:var(--font-mono); color:var(--ceniza); font-size:12px;}
+
+  .legend{display:flex; height:10px; border-radius:4px; overflow:hidden; margin:8px 0 4px 0;}
+  .legend div{flex:1;}
+  .legend-labels{display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10.5px; color:var(--ceniza);}
+
+  .help{font-size:11.5px; color:var(--ceniza); line-height:1.5; margin-top:10px;}
+  .help a{color:#8fbfe0;}
+
+  .status{
+    padding:12px 20px; font-family:var(--font-mono); font-size:11px;
+    color:var(--ceniza); margin-top:auto; border-top:1px solid var(--line);
+  }
+  .status .ok{color:var(--verde);}
+  .status .warn{color:var(--ember);}
+
+  /* ---------- Map ---------- */
+  #map{flex:1;}
+  .leaflet-popup-content-wrapper{
+    background:var(--bg-1); color:var(--hueso); border-radius:8px;
+    border:1px solid var(--line);
+  }
+  .leaflet-popup-tip{background:var(--bg-1);}
+  .popup h3{font-family:var(--font-display); font-size:14px; margin:0 0 6px 0;}
+  .popup table{font-size:12px; font-family:var(--font-mono); border-collapse:collapse;}
+  .popup td{padding:1px 8px 1px 0; color:var(--ceniza);}
+  .popup td.v{color:var(--hueso); text-align:right;}
+  .popup .src{font-size:10px; color:var(--ember); text-transform:uppercase; letter-spacing:.06em; margin-top:6px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="eyebrow">Prototipo · PAPVEIF</div>
+      <h1>Red de Estaciones<br>Gran Canaria</h1>
+      <p>Visor en tiempo real — base para el visor operativo de vigilancia de incendios.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Claves de acceso</h2>
+      <label class="field" for="aemetKey">AEMET OpenData — API key</label>
+      <input type="password" id="aemetKey" placeholder="pega aquí tu api_key">
+      <label class="field" for="grafcanKey">GRAFCAN Sensores — API key</label>
+      <input type="password" id="grafcanKey" placeholder="pega aquí tu api_key">
+      <button id="btnConectar">Cargar datos</button>
+      <div class="help">
+        AEMET: solicita la clave en <a href="https://opendata.aemet.es/centrodedescargas/inicio" target="_blank">opendata.aemet.es</a> (llega por email, gratis).<br>
+        GRAFCAN: solicítala en <a href="https://sensores.grafcan.es" target="_blank">sensores.grafcan.es</a>.
+        Ninguna clave se guarda ni se envía a ningún sitio salvo a la propia API oficial.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Fuentes <span class="count" id="totalCount">0 estaciones</span></h2>
+      <div class="source-row">
+        <span><span class="dot aemet"></span>AEMET (nacional)</span>
+        <span class="n" id="nAemet">—</span>
+      </div>
+      <div class="source-row">
+        <span><span class="dot grafcan"></span>Red Gobierno de Canarias</span>
+        <span class="n" id="nGrafcan">—</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Variable en el mapa</h2>
+      <select id="variable">
+        <option value="ta">Temperatura (°C)</option>
+        <option value="vv">Viento medio (km/h)</option>
+        <option value="hr">Humedad relativa (%)</option>
+        <option value="prec">Precipitación (mm, últ. 10 min)</option>
+      </select>
+      <div class="legend" id="legendBar"></div>
+      <div class="legend-labels"><span id="legMin">min</span><span id="legMax">max</span></div>
+    </div>
+
+    <div class="panel" id="debugPanel" style="display:none;">
+      <h2 id="rawDebugLabel">JSON crudo</h2>
+      <pre id="rawDebug" style="max-height:220px;overflow:auto;background:var(--bg-0);
+        border:1px solid var(--line);border-radius:6px;padding:8px;
+        font-family:var(--font-mono);font-size:10.5px;color:var(--ceniza);
+        white-space:pre-wrap;word-break:break-all;"></pre>
+    </div>
+
+    <div class="status" id="statusBar">Esperando claves de API…</div>
+  </aside>
+
+  <div id="map"></div>
+</div>
+
+<script>
+/* =========================================================================
+   VISOR DE ESTACIONES · GRAN CANARIA — prototipo v0
+   -------------------------------------------------------------------------
+   Estructura pensada para crecer igual que el proyecto de referencia:
+   este único archivo es el punto de partida; a medida que se añadan
+   fuentes (radar, incendios, WindNinja...) conviene separar en módulos
+   (js/aemet.js, js/grafcan.js, js/map.js...) y mover la actualización de
+   datos a un script programado (p. ej. GitHub Actions) que escriba JSON
+   estático y el frontend simplemente lea.
+   ========================================================================= */
+
+// Bounding box de Gran Canaria (con margen) para filtrar la respuesta
+// nacional de AEMET, que devuelve TODAS las estaciones de España.
+const GC_BBOX = { latMin: 27.65, latMax: 28.23, lonMin: -15.95, lonMax: -15.30 };
+
+const map = L.map('map', { zoomControl: true }).setView([27.955, -15.585], 11);
+
+// Basemap oscuro (CARTO Dark Matter) — gratuito, requiere solo atribución.
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+let markersLayer = L.layerGroup().addTo(map);
+let stations = []; // { id, name, lat, lon, source, ta, hr, vv, dv, prec, fint }
+
+const variableSelect = document.getElementById('variable');
+const statusBar = document.getElementById('statusBar');
+
+function setStatus(msg, kind) {
+  statusBar.innerHTML = msg;
+  statusBar.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+/* ---------------------------------------------------------------------
+   AEMET OpenData
+   Endpoint real: /api/observacion/convencional/todas
+   Devuelve TODA España; la petición es en dos pasos (patrón estándar
+   de AEMET OpenData): 1) pides el endpoint -> te da una URL en "datos"
+   2) haces fetch de esa URL para obtener el JSON real de observaciones.
+   Campos típicos por estación: idema, ubi, lat, lon, ta, hr, vv (m/s),
+   dv, prec, fint (fecha-hora).
+--------------------------------------------------------------------- */
+async function fetchAemet(apiKey) {
+  const base = 'https://opendata.aemet.es/opendata/api/observacion/convencional/todas';
+  const step1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey));
+  if (!step1.ok) throw new Error('AEMET: la petición inicial falló (' + step1.status + ')');
+  const step1json = await step1.json();
+  if (!step1json.datos) throw new Error('AEMET: respuesta sin campo "datos" — revisa la api_key');
+
+  const step2 = await fetch(step1json.datos);
+  if (!step2.ok) throw new Error('AEMET: no se pudo descargar el JSON de datos (' + step2.status + ')');
+  const raw = await step2.json();
+  if (raw && raw[0]) showRawDebug('AEMET', raw[0]);
+
+  return raw
+    .filter(s => s.lat >= GC_BBOX.latMin && s.lat <= GC_BBOX.latMax &&
+                 s.lon >= GC_BBOX.lonMin && s.lon <= GC_BBOX.lonMax)
+    .map(s => ({
+      id: 'aemet-' + s.idema,
+      name: s.ubi || s.idema,
+      lat: s.lat, lon: s.lon,
+      source: 'AEMET',
+      ta: s.ta ?? null,
+      hr: s.hr ?? null,
+      vv: (s.vv != null) ? +(s.vv * 3.6).toFixed(1) : null, // m/s -> km/h
+      dv: s.dv ?? null,
+      prec: s.prec ?? null,
+      fint: s.fint ?? null
+    }));
+}
+
+/* ---------------------------------------------------------------------
+   GRAFCAN — Red de Estaciones Meteorológicas del Gobierno de Canarias
+   API en https://sensores.grafcan.es/api/v1.0/ — modelo tipo OGC
+   SensorThings servido sobre Django REST Framework (Swagger drf-yasg).
+
+   MODELO DE DATOS REAL (confirmado con el OpenAPI público de la API):
+     things/            -> estación: {id, name, description, properties,
+                                       location_set:[url,...]}   (SIN valores)
+     locations/         -> geometría: {id, name, location(GeoJSON)}
+                                       enlazada desde thing.location_set
+     datastreams/       -> serie por variable: {id, name, thing(url),
+                                       observedProperty(url), unitOfMeasurement}
+     observations_last/?thing={id} -> ÚLTIMO valor por datastream de esa
+                                       estación: {result, phenomenonTime, datastream}
+
+   Por eso el mapeo anterior (thing.ta, thing.temperatura) no podía
+   funcionar: los valores NO viven en /things/. Aquí cruzamos los cuatro
+   recursos: things (metadatos) + locations (coordenadas) + datastreams
+   (qué mide cada serie) + observations_last (el valor más reciente).
+
+   PENDIENTE DE CONFIRMAR con tu api_key (panel "JSON crudo"):
+     - Nombre exacto de cada datastream/observedProperty para clasificar
+       la variable (ver VAR_MATCHERS).
+     - Unidad del viento (m/s o km/h) vía unitOfMeasurement.
+     - Forma exacta del campo location (GeoJSON Point vs Feature).
+   El código es defensivo ante esas variantes; ajústalo cuando veas el JSON.
+--------------------------------------------------------------------- */
+
+const GRAFCAN_API = 'https://sensores.grafcan.es/api/v1.0/';
+
+// La API es Django REST Framework: pagina como {count, next, previous,
+// results:[...]}. Seguimos "next" hasta agotar (con tope de seguridad).
+async function grafcanGetAll(url, apiKey, { maxPages = 40 } = {}) {
+  const headers = { 'accept': 'application/json', 'Authorization': 'Api-Key ' + apiKey };
+  let out = [], next = url, pages = 0;
+  while (next && pages < maxPages) {
+    const resp = await fetch(next, { headers });
+    const text = await resp.text();
+    if (!resp.ok) throw new Error(`GRAFCAN: HTTP ${resp.status} en ${next} — ${text.slice(0, 160)}`);
+    let json;
+    try { json = JSON.parse(text); }
+    catch { throw new Error('GRAFCAN: respuesta no-JSON (¿CORS bloqueando desde el navegador?) en ' + next); }
+    const items = Array.isArray(json) ? json : (json.results || json.value || []);
+    out = out.concat(items);
+    next = (json && json.next) || null;
+    pages++;
+  }
+  return out;
+}
+
+// Saca el id numérico de una URI de recurso ("…/datastreams/42/") o de un
+// objeto ya expandido ({id:42}).
+function grafcanId(ref) {
+  if (ref == null) return null;
+  if (typeof ref === 'object') return ref.id ?? ref.pk ?? null;
+  const m = String(ref).match(/\/(\d+)\/?$/);
+  return m ? +m[1] : null;
+}
+
+// Extrae {lat, lon} de un /locations/ item. location puede llegar como
+// objeto GeoJSON o como string JSON; Point o Feature. GeoJSON = [lon, lat].
+function grafcanCoords(loc) {
+  let g = loc && loc.location;
+  if (typeof g === 'string') { try { g = JSON.parse(g); } catch { g = null; } }
+  if (!g) return null;
+  const coords = g.coordinates || (g.geometry && g.geometry.coordinates);
+  if (Array.isArray(coords) && coords.length >= 2 && isFinite(coords[0]) && isFinite(coords[1])) {
+    return { lon: +coords[0], lat: +coords[1] };
+  }
+  return null;
+}
+
+// Clasificación de variable a partir del texto del datastream/observedProperty.
+// Insensible a mayúsculas y acentos. El orden importa: "dirección del viento"
+// debe capturarse antes que "viento".  ← Ajusta las regex con el JSON real.
+const grafcanNorm = s => (s || '').toString().toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '');
+const VAR_MATCHERS = [
+  { key: 'dv',   re: /direcc.*(viento|wind)|wind.*dir/ },
+  { key: 'vv',   re: /veloc.*viento|viento|wind|racha/ },
+  { key: 'ta',   re: /temperatura|air temp|(^|\W)temp(\W|$)/ },
+  { key: 'hr',   re: /humedad|humidity/ },
+  { key: 'prec', re: /precip|lluvia|rain|pluviom/ },
+];
+function grafcanClassify(text) {
+  const t = grafcanNorm(text);
+  for (const m of VAR_MATCHERS) if (m.re.test(t)) return m.key;
+  return null;
+}
+
+async function fetchGrafcan(apiKey) {
+  const inBBox = (lat, lon) =>
+    lat >= GC_BBOX.latMin && lat <= GC_BBOX.latMax &&
+    lon >= GC_BBOX.lonMin && lon <= GC_BBOX.lonMax;
+
+  // 1) Metadatos: estaciones, ubicaciones y series (una llamada paginada c/u).
+  const [things, locations, datastreams] = await Promise.all([
+    grafcanGetAll(GRAFCAN_API + 'things/', apiKey),
+    grafcanGetAll(GRAFCAN_API + 'locations/', apiKey),
+    grafcanGetAll(GRAFCAN_API + 'datastreams/', apiKey),
+  ]);
+  showRawDebug('things[0]', things[0]);
+  showRawDebug('locations[0]', locations[0]);
+  showRawDebug('datastreams[0]', datastreams[0]);
+
+  // locId -> {lat, lon}
+  const locCoords = new Map();
+  for (const loc of locations) {
+    const c = grafcanCoords(loc);
+    if (c) locCoords.set(loc.id, c);
+  }
+
+  // dsId -> variable ('ta'|'hr'|'vv'|'dv'|'prec'|null)
+  const dsVar = new Map();
+  for (const ds of datastreams) {
+    dsVar.set(ds.id, grafcanClassify([ds.name, ds.description].join(' ')));
+  }
+
+  // 2) Nos quedamos con las estaciones dentro del bbox de Gran Canaria.
+  const gcThings = [];
+  for (const th of things) {
+    let coords = null;
+    for (const locUrl of (th.location_set || [])) {
+      const c = locCoords.get(grafcanId(locUrl));
+      if (c) { coords = c; break; }
+    }
+    // Fallback: algunas implementaciones guardan lat/lon en properties.
+    if (!coords && th.properties) {
+      const p = th.properties;
+      const lat = +(p.lat ?? p.latitude ?? p.latitud), lon = +(p.lon ?? p.lng ?? p.longitude ?? p.longitud);
+      if (isFinite(lat) && isFinite(lon)) coords = { lat, lon };
+    }
+    if (coords && inBBox(coords.lat, coords.lon)) gcThings.push({ th, coords });
+  }
+
+  // 3) Último valor de cada estación (observations_last por thing).
+  //    Es 1 petición por estación: correcto para un prototipo; cuando esto
+  //    crezca conviene precomputar un JSON estático (GitHub Actions) y que
+  //    el frontend solo lo lea (ver cabecera del archivo).
+  const results = await Promise.all(gcThings.map(async ({ th, coords }, i) => {
+    const station = {
+      id: 'grafcan-' + th.id,
+      name: th.name || ('Estación ' + th.id),
+      lat: coords.lat, lon: coords.lon,
+      source: 'GRAFCAN',
+      ta: null, hr: null, vv: null, dv: null, prec: null, fint: null,
+    };
+    try {
+      const obs = await grafcanGetAll(
+        GRAFCAN_API + 'observations_last/?thing=' + th.id, apiKey, { maxPages: 3 });
+      if (i === 0) showRawDebug('observations_last[thing=' + th.id + ']', obs[0] ?? obs);
+      for (const o of obs) {
+        // La variable puede deducirse del datastream (mapa dsVar) o, si la
+        // observación viene expandida, de su propio nombre/observedProperty.
+        const key = dsVar.get(grafcanId(o.datastream))
+          ?? grafcanClassify([o.name, o.observedProperty && o.observedProperty.name].join(' '));
+        if (!key || o.result == null) continue;
+        // OJO unidad viento: AEMET va en km/h; si GRAFCAN diera m/s habría que
+        // convertir (val*3.6). No convertimos hasta confirmar unitOfMeasurement.
+        station[key] = +o.result;
+        station.fint = station.fint || o.phenomenonTime || o.resultTime || null;
+      }
+    } catch (_) { /* estación visible en el mapa aunque falle su último dato */ }
+    return station;
+  }));
+
+  return results;
+}
+
+// Acumula una muestra por endpoint para poder inspeccionar/compartir el JSON
+// real de cada recurso a la vez (things, locations, datastreams, observations…).
+const rawSamples = {};
+function showRawDebug(source, obj) {
+  if (obj == null) return;
+  rawSamples[source] = obj;
+  const el = document.getElementById('rawDebug');
+  const label = document.getElementById('rawDebugLabel');
+  label.textContent = 'JSON crudo · muestra por endpoint';
+  el.textContent = Object.entries(rawSamples)
+    .map(([k, v]) => `// ===== ${k} =====\n` + JSON.stringify(v, null, 2))
+    .join('\n\n');
+  document.getElementById('debugPanel').style.display = 'block';
+}
+
+/* ---------------------------------------------------------------------
+   Escala de color — mismo espíritu teal→rojo que usas en el IP/IV
+--------------------------------------------------------------------- */
+const SCALE = ['#2fa8a0', '#4f8f72', '#d7c24a', '#d9622b', '#c1291a'];
+
+function colorFor(value, min, max) {
+  if (value == null || isNaN(value)) return '#5a564c';
+  const t = Math.max(0, Math.min(1, (value - min) / ((max - min) || 1)));
+  const idx = Math.min(SCALE.length - 2, Math.floor(t * (SCALE.length - 1)));
+  return SCALE[idx];
+}
+
+function renderLegend(min, max) {
+  const bar = document.getElementById('legendBar');
+  bar.innerHTML = SCALE.map(c => `<div style="background:${c}"></div>`).join('');
+  document.getElementById('legMin').textContent = (min ?? '–');
+  document.getElementById('legMax').textContent = (max ?? '–');
+}
+
+function render() {
+  const variable = variableSelect.value;
+  const values = stations.map(s => s[variable]).filter(v => v != null && !isNaN(v));
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 1;
+  renderLegend(Math.round(min), Math.round(max));
+
+  markersLayer.clearLayers();
+  stations.forEach(s => {
+    const val = s[variable];
+    const marker = L.circleMarker([s.lat, s.lon], {
+      radius: 7,
+      color: '#15130f',
+      weight: 1,
+      fillColor: colorFor(val, min, max),
+      fillOpacity: 0.9
+    });
+    marker.bindPopup(popupHtml(s, variable));
+    marker.addTo(markersLayer);
+  });
+
+  document.getElementById('nAemet').textContent = stations.filter(s => s.source === 'AEMET').length;
+  document.getElementById('nGrafcan').textContent = stations.filter(s => s.source === 'GRAFCAN').length;
+  document.getElementById('totalCount').textContent = stations.length + ' estaciones';
+}
+
+function popupHtml(s, activeVar) {
+  const row = (label, val, unit, key) =>
+    `<tr${key === activeVar ? ' style="color:#f2ede2;font-weight:600"' : ''}>
+       <td>${label}</td><td class="v">${val != null ? val + unit : '—'}</td>
+     </tr>`;
+  return `
+    <div class="popup">
+      <h3>${s.name}</h3>
+      <table>
+        ${row('Temperatura', s.ta, ' °C', 'ta')}
+        ${row('Humedad', s.hr, ' %', 'hr')}
+        ${row('Viento', s.vv, ' km/h', 'vv')}
+        ${row('Dirección', s.dv, '°', 'dv')}
+        ${row('Precipitación', s.prec, ' mm', 'prec')}
+      </table>
+      <div class="src">${s.source}${s.fint ? ' · ' + s.fint.replace('T',' ').slice(0,16) : ''}</div>
+    </div>`;
+}
+
+async function cargar() {
+  const aemetKey = document.getElementById('aemetKey').value.trim();
+  const grafcanKey = document.getElementById('grafcanKey').value.trim();
+  if (!aemetKey && !grafcanKey) { setStatus('Introduce al menos una clave de API.', 'warn'); return; }
+
+  document.getElementById('btnConectar').disabled = true;
+  setStatus('Consultando estaciones…');
+  stations = [];
+
+  if (aemetKey) {
+    try {
+      const aemetStations = await fetchAemet(aemetKey);
+      stations = stations.concat(aemetStations);
+      setStatus(`AEMET: ${aemetStations.length} estaciones en Gran Canaria.`, 'ok');
+    } catch (e) {
+      setStatus('AEMET: ' + e.message, 'warn');
+    }
+  }
+
+  if (grafcanKey) {
+    try {
+      const grafcanStations = await fetchGrafcan(grafcanKey);
+      stations = stations.concat(grafcanStations);
+    } catch (e) {
+      setStatus((aemetKey ? statusBar.textContent + ' · ' : '') + 'GRAFCAN: ' + e.message, 'warn');
+    }
+  }
+
+  render();
+  document.getElementById('btnConectar').disabled = false;
+  if (stations.length) {
+    setStatus(`Última carga: ${new Date().toLocaleTimeString('es-ES')} · ${stations.length} estaciones`, 'ok');
+  }
+}
+
+document.getElementById('btnConectar').addEventListener('click', cargar);
+variableSelect.addEventListener('change', render);
+renderLegend(null, null);
+</script>
+</body>
+</html>

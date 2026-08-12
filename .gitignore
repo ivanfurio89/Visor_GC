@@ -1,0 +1,20 @@
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Herramientas locales (no deben ir al repo)
+.claude/
+
+# Secretos — NUNCA subir claves de API al repositorio.
+# El visor pide las claves en tiempo de ejecución (inputs de la barra
+# lateral); no hay claves en el código. Estos patrones evitan además que
+# se cuele por error cualquier archivo local con secretos.
+.env
+.env.*
+secrets.*
+keys.js
+config.local.js
+*.key
