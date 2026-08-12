@@ -240,7 +240,9 @@ async function fetchAemet(apiKey) {
 
   const step2 = await fetch(step1json.datos);
   if (!step2.ok) throw new Error('AEMET: no se pudo descargar el JSON de datos (' + step2.status + ')');
-  const raw = await step2.json();
+  // AEMET sirve este JSON en ISO-8859-15, no UTF-8. Con .json() los acentos de
+  // "ubi" se rompen (p. ej. GÁLDAR -> "G�LDAR"); lo decodificamos a mano.
+  const raw = JSON.parse(new TextDecoder('iso-8859-15').decode(await step2.arrayBuffer()));
   if (raw && raw[0]) showRawDebug('AEMET', raw[0]);
 
   return raw
@@ -280,12 +282,17 @@ async function fetchAemet(apiKey) {
    recursos: things (metadatos) + locations (coordenadas) + datastreams
    (qué mide cada serie) + observations_last (el valor más reciente).
 
-   PENDIENTE DE CONFIRMAR con tu api_key (panel "JSON crudo"):
-     - Nombre exacto de cada datastream/observedProperty para clasificar
-       la variable (ver VAR_MATCHERS).
-     - Unidad del viento (m/s o km/h) vía unitOfMeasurement.
-     - Forma exacta del campo location (GeoJSON Point vs Feature).
-   El código es defensivo ante esas variantes; ajústalo cuando veas el JSON.
+   CONFIRMADO con el JSON crudo real (12/08/2026):
+     - location: GeoJSON Point con coordinates [lon, lat].
+     - datastreams en inglés: "Air temperature (avg.)", "Wind speed (avg.)"…
+       (ver VAR_MATCHERS) con cualificadores (avg./max./min./acc.) → grafcanRank.
+     - unitOfMeasurement es un objeto {name, symbol, definition} → grafcanToDisplay
+       convierte viento m/s→km/h si el símbolo lo indica.
+     - name legible: viene de la ubicación, no del thing (que es el modelo HW).
+
+   PENDIENTE (necesita ver una respuesta NO vacía de observations_last):
+     - Forma exacta de la observación (¿trae 'datastream' como URI y 'result'?).
+       El panel captura ahora la 1ª respuesta no vacía para confirmarlo.
 --------------------------------------------------------------------- */
 
 const GRAFCAN_API = 'https://sensores.grafcan.es/api/v1.0/';
@@ -332,22 +339,43 @@ function grafcanCoords(loc) {
   return null;
 }
 
-// Clasificación de variable a partir del texto del datastream/observedProperty.
-// Insensible a mayúsculas y acentos. El orden importa: "dirección del viento"
-// debe capturarse antes que "viento".  ← Ajusta las regex con el JSON real.
+// Clasificación de variable a partir del nombre del datastream. Los datastreams
+// de GRAFCAN vienen EN INGLÉS ("Air temperature (avg.)", "Wind speed (avg.)",
+// "Wind direction (avg.)", "Relative humidity (avg.)", "Precipitation (acc.)"…).
+// Insensible a mayúsculas/acentos. El orden importa: dirección antes que viento.
 const grafcanNorm = s => (s || '').toString().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
 const VAR_MATCHERS = [
-  { key: 'dv',   re: /direcc.*(viento|wind)|wind.*dir/ },
-  { key: 'vv',   re: /veloc.*viento|viento|wind|racha/ },
-  { key: 'ta',   re: /temperatura|air temp|(^|\W)temp(\W|$)/ },
-  { key: 'hr',   re: /humedad|humidity/ },
-  { key: 'prec', re: /precip|lluvia|rain|pluviom/ },
+  { key: 'dv',   re: /wind.*dir|direcc.*(viento|wind)/ },
+  { key: 'vv',   re: /wind.*speed|veloc.*viento|(^|\W)viento(\W|$)/ },
+  { key: 'ta',   re: /air.*temp|temperatura/ },
+  { key: 'hr',   re: /humid|humedad/ },
+  { key: 'prec', re: /precip|rain|lluvia|pluviom/ },
 ];
 function grafcanClassify(text) {
   const t = grafcanNorm(text);
   for (const m of VAR_MATCHERS) if (m.re.test(t)) return m.key;
   return null;
+}
+
+// Cada variable suele tener varios datastreams: (avg.), (max.), (min.), (acc.).
+// Para el mapa queremos el representativo: media (o acumulado en precipitación).
+// Damos más rango a avg/acc para que no lo pise un max/min.
+function grafcanRank(text) {
+  const t = grafcanNorm(text);
+  if (/\bavg\b|\(avg|media|medio/.test(t)) return 3;
+  if (/\bacc\b|\(acc|acumul|total/.test(t)) return 3;
+  if (/\bmax\b|\bmin\b|racha|gust/.test(t)) return 1;
+  return 2; // sin cualificador
+}
+
+// Convierte el valor a la unidad que usa el mapa. El único ajuste necesario es
+// el viento: AEMET va en km/h; si un datastream de GRAFCAN diera m/s, lo pasamos
+// a km/h. La unidad viene en datastream.unitOfMeasurement.symbol (p. ej. "m/s").
+function grafcanToDisplay(key, value, unitSymbol) {
+  if (value == null || isNaN(value)) return null;
+  if (key === 'vv' && /m\/?s/i.test(unitSymbol || '')) return +(value * 3.6).toFixed(1);
+  return +value;
 }
 
 async function fetchGrafcan(apiKey) {
@@ -356,73 +384,91 @@ async function fetchGrafcan(apiKey) {
     lon >= GC_BBOX.lonMin && lon <= GC_BBOX.lonMax;
 
   // 1) Metadatos: estaciones, ubicaciones y series (una llamada paginada c/u).
+  //    page_size grande reduce el nº de páginas; si la API lo ignora, seguimos
+  //    igualmente el enlace "next" hasta agotar.
   const [things, locations, datastreams] = await Promise.all([
-    grafcanGetAll(GRAFCAN_API + 'things/', apiKey),
-    grafcanGetAll(GRAFCAN_API + 'locations/', apiKey),
-    grafcanGetAll(GRAFCAN_API + 'datastreams/', apiKey),
+    grafcanGetAll(GRAFCAN_API + 'things/?page_size=1000', apiKey),
+    grafcanGetAll(GRAFCAN_API + 'locations/?page_size=1000', apiKey),
+    grafcanGetAll(GRAFCAN_API + 'datastreams/?page_size=1000', apiKey),
   ]);
   showRawDebug('things[0]', things[0]);
   showRawDebug('locations[0]', locations[0]);
   showRawDebug('datastreams[0]', datastreams[0]);
 
-  // locId -> {lat, lon}
-  const locCoords = new Map();
+  // locId -> {lat, lon, name}. El "name" de la ubicación es el nombre legible
+  // ("El Hierro, El Pinar, Malpaso"); el thing.name suele ser el modelo del
+  // aparato ("MTD3016CP (SN: 0379)"), así que preferimos el de la ubicación.
+  const locMeta = new Map();
   for (const loc of locations) {
     const c = grafcanCoords(loc);
-    if (c) locCoords.set(loc.id, c);
+    if (c) locMeta.set(loc.id, { ...c, name: loc.name || null });
   }
 
-  // dsId -> variable ('ta'|'hr'|'vv'|'dv'|'prec'|null)
-  const dsVar = new Map();
+  // dsId -> {thingId, key, rank, unit}. unitOfMeasurement es un objeto
+  // {name, symbol, definition}; nos quedamos con el símbolo para el viento.
+  const dsMeta = new Map();
   for (const ds of datastreams) {
-    dsVar.set(ds.id, grafcanClassify([ds.name, ds.description].join(' ')));
+    const text = [ds.name, ds.description].join(' ');
+    dsMeta.set(ds.id, {
+      thingId: grafcanId(ds.thing),
+      key: grafcanClassify(text),
+      rank: grafcanRank(text),
+      unit: (ds.unitOfMeasurement && ds.unitOfMeasurement.symbol) || null,
+    });
   }
 
   // 2) Nos quedamos con las estaciones dentro del bbox de Gran Canaria.
   const gcThings = [];
   for (const th of things) {
-    let coords = null;
+    let loc = null;
     for (const locUrl of (th.location_set || [])) {
-      const c = locCoords.get(grafcanId(locUrl));
-      if (c) { coords = c; break; }
+      const m = locMeta.get(grafcanId(locUrl));
+      if (m) { loc = m; break; }
     }
     // Fallback: algunas implementaciones guardan lat/lon en properties.
-    if (!coords && th.properties) {
+    if (!loc && th.properties) {
       const p = th.properties;
       const lat = +(p.lat ?? p.latitude ?? p.latitud), lon = +(p.lon ?? p.lng ?? p.longitude ?? p.longitud);
-      if (isFinite(lat) && isFinite(lon)) coords = { lat, lon };
+      if (isFinite(lat) && isFinite(lon)) loc = { lat, lon, name: null };
     }
-    if (coords && inBBox(coords.lat, coords.lon)) gcThings.push({ th, coords });
+    if (loc && inBBox(loc.lat, loc.lon)) gcThings.push({ th, loc });
   }
 
   // 3) Último valor de cada estación (observations_last por thing).
   //    Es 1 petición por estación: correcto para un prototipo; cuando esto
   //    crezca conviene precomputar un JSON estático (GitHub Actions) y que
   //    el frontend solo lo lea (ver cabecera del archivo).
-  const results = await Promise.all(gcThings.map(async ({ th, coords }, i) => {
+  let obsSampleShown = false; // capturamos la 1ª respuesta NO vacía para depurar
+  const results = await Promise.all(gcThings.map(async ({ th, loc }) => {
     const station = {
       id: 'grafcan-' + th.id,
-      name: th.name || ('Estación ' + th.id),
-      lat: coords.lat, lon: coords.lon,
+      name: loc.name || th.name || ('Estación ' + th.id),
+      lat: loc.lat, lon: loc.lon,
       source: 'GRAFCAN',
       ta: null, hr: null, vv: null, dv: null, prec: null, fint: null,
+      _rank: {}, // rango del datastream que dejó cada valor (uso interno)
     };
     try {
       const obs = await grafcanGetAll(
         GRAFCAN_API + 'observations_last/?thing=' + th.id, apiKey, { maxPages: 3 });
-      if (i === 0) showRawDebug('observations_last[thing=' + th.id + ']', obs[0] ?? obs);
+      if (!obsSampleShown && obs.length) {
+        obsSampleShown = true;
+        showRawDebug('observations_last[thing=' + th.id + ']', obs[0]);
+      }
       for (const o of obs) {
-        // La variable puede deducirse del datastream (mapa dsVar) o, si la
-        // observación viene expandida, de su propio nombre/observedProperty.
-        const key = dsVar.get(grafcanId(o.datastream))
+        const meta = dsMeta.get(grafcanId(o.datastream)) || {};
+        // Si la observación viniera expandida, deducimos del propio texto.
+        const key = meta.key
           ?? grafcanClassify([o.name, o.observedProperty && o.observedProperty.name].join(' '));
         if (!key || o.result == null) continue;
-        // OJO unidad viento: AEMET va en km/h; si GRAFCAN diera m/s habría que
-        // convertir (val*3.6). No convertimos hasta confirmar unitOfMeasurement.
-        station[key] = +o.result;
+        const rank = meta.rank ?? 2;
+        if (rank < (station._rank[key] ?? 0)) continue; // no pisar avg con max/min
+        station[key] = grafcanToDisplay(key, o.result, meta.unit);
+        station._rank[key] = rank;
         station.fint = station.fint || o.phenomenonTime || o.resultTime || null;
       }
     } catch (_) { /* estación visible en el mapa aunque falle su último dato */ }
+    delete station._rank;
     return station;
   }));
 
