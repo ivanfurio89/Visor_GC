@@ -183,6 +183,20 @@
       <div class="legend-labels"><span id="legMin">min</span><span id="legMax">max</span></div>
     </div>
 
+    <div class="panel">
+      <h2>Capas</h2>
+      <label class="remember" for="radarToggle">
+        <input type="checkbox" id="radarToggle"> Radar de precipitación (AEMET)
+      </label>
+      <label class="field" for="radarOpacity" style="margin-top:4px;">Opacidad del radar</label>
+      <input type="range" id="radarOpacity" min="0" max="100" value="60" style="width:100%;">
+      <div class="help">
+        Imagen del radar regional de Canarias (refresco ~10 min). Requiere la
+        clave de AEMET. El encuadre es aproximado y se calibra con los metadatos
+        reales (panel «JSON crudo»).
+      </div>
+    </div>
+
     <div class="panel" id="debugPanel" style="display:none;">
       <h2 id="rawDebugLabel">JSON crudo</h2>
       <pre id="rawDebug" style="max-height:220px;overflow:auto;background:var(--bg-0);
@@ -213,6 +227,18 @@
 // nacional de AEMET, que devuelve TODAS las estaciones de España.
 const GC_BBOX = { latMin: 27.65, latMax: 28.23, lonMin: -15.95, lonMax: -15.30 };
 
+// Radar de precipitación de AEMET (regional). El radar de Canarias es "lpa"
+// (la web de AEMET lo referencia como ?p=LPA); si no cargara, prueba "gc".
+// Es un ÚNICO fotograma que AEMET refresca ~cada 10 min.
+// OJO: `bounds` es el encuadre geográfico de la imagen [ [latSur,lonOeste],
+// [latNorte,lonEste] ] y es APROXIMADO — hay que calibrarlo con los metadatos
+// reales (se vuelcan en el panel «JSON crudo» al activar el radar).
+const AEMET_RADAR = {
+  code: 'lpa',
+  bounds: [[26.6, -18.9], [30.0, -12.7]],
+  opacity: 0.6,
+};
+
 const map = L.map('map', { zoomControl: true }).setView([27.955, -15.585], 11);
 
 // Basemap oscuro (CARTO Dark Matter) — gratuito, requiere solo atribución.
@@ -222,6 +248,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
 }).addTo(map);
 
 let markersLayer = L.layerGroup().addTo(map);
+let radarLayer = null; // imageOverlay del radar AEMET (o null si está oculto)
 let stations = []; // { id, name, lat, lon, source, ta, hr, vv, dv, prec, fint }
 
 const variableSelect = document.getElementById('variable');
@@ -270,6 +297,50 @@ async function fetchAemet(apiKey) {
       prec: s.prec ?? null,
       fint: s.fint ?? null
     }));
+}
+
+/* ---------------------------------------------------------------------
+   AEMET — Radar regional de precipitación (imagen)
+   Mismo patrón de 2 pasos que el resto de AEMET OpenData: 1) pides el
+   endpoint -> te da una URL en "datos" (la imagen) y otra en "metadatos".
+   Devolvemos la URL de la imagen para pintarla como L.imageOverlay. Los
+   metadatos se vuelcan al panel de depuración para calibrar el encuadre.
+--------------------------------------------------------------------- */
+async function fetchAemetRadar(apiKey) {
+  const base = 'https://opendata.aemet.es/opendata/api/red/radar/regional/' + AEMET_RADAR.code;
+  const step1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey));
+  if (!step1.ok) throw new Error('petición inicial falló (' + step1.status + ')');
+  const meta = await step1.json();
+  if (!meta.datos) throw new Error('respuesta sin "datos" — revisa la api_key o el código de radar');
+  // Metadatos (para calibrar bounds): no bloqueamos si fallan.
+  if (meta.metadatos) {
+    try { showRawDebug('AEMET radar metadatos', await (await fetch(meta.metadatos)).json()); }
+    catch (_) { /* opcional */ }
+  }
+  return meta.datos; // URL de la imagen del radar (png/gif)
+}
+
+// Muestra u oculta la capa de radar. Se llama desde el checkbox y tras cargar.
+async function toggleRadar(on) {
+  if (radarLayer) { map.removeLayer(radarLayer); radarLayer = null; }
+  if (!on) return;
+  const aemetKey = document.getElementById('aemetKey').value.trim();
+  if (!aemetKey) {
+    setStatus('Radar: necesita la clave de AEMET.', 'warn');
+    document.getElementById('radarToggle').checked = false;
+    return;
+  }
+  try {
+    setStatus('Radar: cargando imagen…');
+    const imgUrl = await fetchAemetRadar(aemetKey);
+    const opacity = (+document.getElementById('radarOpacity').value || 60) / 100;
+    radarLayer = L.imageOverlay(imgUrl, AEMET_RADAR.bounds, { opacity, interactive: false });
+    radarLayer.addTo(map);
+    setStatus('Radar AEMET cargado (encuadre aproximado, pendiente de calibrar).', 'ok');
+  } catch (e) {
+    setStatus('Radar: ' + e.message, 'warn');
+    document.getElementById('radarToggle').checked = false;
+  }
 }
 
 /* ---------------------------------------------------------------------
@@ -637,6 +708,8 @@ async function cargar() {
   if (stations.length) {
     setStatus(`Última carga: ${new Date().toLocaleTimeString('es-ES')} · ${stations.length} estaciones`, 'ok');
   }
+  // Si el radar está activado, lo refrescamos con la última imagen disponible.
+  if (document.getElementById('radarToggle').checked) toggleRadar(true);
 }
 
 document.getElementById('btnConectar').addEventListener('click', cargar);
@@ -644,6 +717,11 @@ variableSelect.addEventListener('change', render);
 // Si se desmarca "Recordar", borramos las claves guardadas al instante.
 document.getElementById('rememberKeys').addEventListener('change', (e) => {
   if (!e.target.checked) guardarClaves('', '');
+});
+// Radar: activar/desactivar y ajustar opacidad en vivo.
+document.getElementById('radarToggle').addEventListener('change', (e) => toggleRadar(e.target.checked));
+document.getElementById('radarOpacity').addEventListener('input', (e) => {
+  if (radarLayer) radarLayer.setOpacity((+e.target.value || 60) / 100);
 });
 cargarClavesGuardadas();
 renderLegend(null, null);
