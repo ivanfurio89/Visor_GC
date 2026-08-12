@@ -72,6 +72,11 @@
     font-family:var(--font-mono); margin-bottom:10px;
   }
   input:focus, select:focus{outline:none; border-color:var(--ember);}
+  label.remember{
+    display:flex; align-items:center; gap:7px; cursor:pointer;
+    font-size:12px; color:var(--ceniza); margin:2px 0 12px 0;
+  }
+  label.remember input{width:auto; margin:0; accent-color:var(--ember);}
 
   button{
     font-family:var(--font-body); font-weight:600; font-size:13px;
@@ -141,11 +146,16 @@
       <input type="password" id="aemetKey" placeholder="pega aquí tu api_key">
       <label class="field" for="grafcanKey">GRAFCAN Sensores — API key</label>
       <input type="password" id="grafcanKey" placeholder="pega aquí tu api_key">
+      <label class="remember" for="rememberKeys">
+        <input type="checkbox" id="rememberKeys"> Recordar en este navegador
+      </label>
       <button id="btnConectar">Cargar datos</button>
       <div class="help">
         AEMET: solicita la clave en <a href="https://opendata.aemet.es/centrodedescargas/inicio" target="_blank">opendata.aemet.es</a> (llega por email, gratis).<br>
-        GRAFCAN: solicítala en <a href="https://sensores.grafcan.es" target="_blank">sensores.grafcan.es</a>.
-        Ninguna clave se guarda ni se envía a ningún sitio salvo a la propia API oficial.
+        GRAFCAN: solicítala en <a href="https://sensores.grafcan.es" target="_blank">sensores.grafcan.es</a>.<br>
+        Las claves solo se envían a la API oficial. Si marcas «Recordar», se guardan
+        en el <em>almacenamiento local de este navegador</em> (nunca en el código ni
+        en el repositorio); desmárcalo para borrarlas.
       </div>
     </div>
 
@@ -555,10 +565,49 @@ function popupHtml(s, activeVar) {
     </div>`;
 }
 
+/* ---------------------------------------------------------------------
+   Persistencia opcional de claves (opt-in) en localStorage del navegador.
+   NUNCA se escriben en el código ni en el repo. Si el usuario desmarca
+   "Recordar", se borran. Es almacenamiento por-origen del navegador: cómodo
+   para un prototipo; en producción, la vía limpia es un backend (GitHub
+   Actions + Secret) que precompute los datos y no exponga la clave al cliente.
+--------------------------------------------------------------------- */
+const LS_KEYS = { aemet: 'visorgc.aemetKey', grafcan: 'visorgc.grafcanKey', remember: 'visorgc.remember' };
+
+function cargarClavesGuardadas() {
+  let remember = false;
+  try {
+    remember = localStorage.getItem(LS_KEYS.remember) === '1';
+    if (remember) {
+      document.getElementById('aemetKey').value = localStorage.getItem(LS_KEYS.aemet) || '';
+      document.getElementById('grafcanKey').value = localStorage.getItem(LS_KEYS.grafcan) || '';
+    }
+  } catch (_) { /* modo privado / storage deshabilitado: seguimos sin recordar */ }
+  document.getElementById('rememberKeys').checked = remember;
+}
+
+function guardarClaves(aemetKey, grafcanKey) {
+  const remember = document.getElementById('rememberKeys').checked;
+  try {
+    if (remember) {
+      localStorage.setItem(LS_KEYS.remember, '1');
+      localStorage.setItem(LS_KEYS.aemet, aemetKey);
+      localStorage.setItem(LS_KEYS.grafcan, grafcanKey);
+    } else {
+      // Al desmarcar, borramos cualquier clave previamente guardada.
+      localStorage.removeItem(LS_KEYS.remember);
+      localStorage.removeItem(LS_KEYS.aemet);
+      localStorage.removeItem(LS_KEYS.grafcan);
+    }
+  } catch (_) { /* si el storage falla, simplemente no se recuerdan */ }
+}
+
 async function cargar() {
   const aemetKey = document.getElementById('aemetKey').value.trim();
   const grafcanKey = document.getElementById('grafcanKey').value.trim();
   if (!aemetKey && !grafcanKey) { setStatus('Introduce al menos una clave de API.', 'warn'); return; }
+
+  guardarClaves(aemetKey, grafcanKey);
 
   document.getElementById('btnConectar').disabled = true;
   setStatus('Consultando estaciones…');
@@ -592,6 +641,11 @@ async function cargar() {
 
 document.getElementById('btnConectar').addEventListener('click', cargar);
 variableSelect.addEventListener('change', render);
+// Si se desmarca "Recordar", borramos las claves guardadas al instante.
+document.getElementById('rememberKeys').addEventListener('change', (e) => {
+  if (!e.target.checked) guardarClaves('', '');
+});
+cargarClavesGuardadas();
 renderLegend(null, null);
 </script>
 </body>

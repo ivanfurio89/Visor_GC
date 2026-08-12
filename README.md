@@ -17,8 +17,15 @@ Un único archivo (`index.html`) listo para publicarse en **GitHub Pages**.
 
 **El repositorio no contiene ninguna clave de API.** El visor las pide en
 tiempo de ejecución mediante los campos de la barra lateral y las usa solo
-para llamar a las APIs oficiales. No se guardan en `localStorage` ni se
-envían a ningún otro sitio.
+para llamar a las APIs oficiales.
+
+Por comodidad hay una casilla **«Recordar en este navegador»** (opt-in): si
+la marcas, las claves se guardan en el `localStorage` de tu navegador —nunca
+en el código ni en el repositorio— para no tener que pegarlas en cada recarga;
+al desmarcarla se borran. Es almacenamiento por-origen del navegador, cómodo
+para uso personal. Para un despliegue serio, la vía recomendada es un backend
+(GitHub Actions + *Secret*) que precompute los datos sin exponer la clave al
+cliente (ver «Aviso sobre CORS»).
 
 - **AEMET**: solicita tu clave gratuita en
   [opendata.aemet.es](https://opendata.aemet.es/centrodedescargas/inicio) (llega por email).
