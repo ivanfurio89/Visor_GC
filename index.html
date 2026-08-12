@@ -241,11 +241,28 @@ const AEMET_RADAR = {
 
 const map = L.map('map', { zoomControl: true }).setView([27.955, -15.585], 11);
 
-// Basemap oscuro (CARTO Dark Matter) — gratuito, requiere solo atribución.
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-  subdomains: 'abcd', maxZoom: 19
-}).addTo(map);
+/* ---------------------------------------------------------------------
+   Mapas base — seleccionables con el control de capas (arriba a la derecha).
+   Todos son gratuitos y sin clave. Para un visor del Cabildo se pueden
+   sustituir luego por los servicios de IDECanarias/GRAFCAN (ortofoto y MDT
+   de alta resolución de Canarias) vía WMS/WMTS.
+--------------------------------------------------------------------- */
+const baseLayers = {
+  'Oscuro': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+  }),
+  'Ortofoto': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics', maxZoom: 19
+  }),
+  'Topográfico': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM · &copy; OpenTopoMap (CC-BY-SA)', subdomains: 'abc', maxZoom: 17
+  }),
+  'Relieve (MDT)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Hillshade &copy; Esri', maxZoom: 19
+  }),
+};
+baseLayers['Oscuro'].addTo(map); // capa por defecto
+const layersControl = L.control.layers(baseLayers, {}, { position: 'topright' }).addTo(map);
 
 let markersLayer = L.layerGroup().addTo(map);
 let radarLayer = null; // imageOverlay del radar AEMET (o null si está oculto)
