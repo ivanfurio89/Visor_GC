@@ -311,7 +311,10 @@ async function fetchAemetRadar(apiKey) {
   const step1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey));
   if (!step1.ok) throw new Error('petición inicial falló (' + step1.status + ')');
   const meta = await step1.json();
-  if (!meta.datos) throw new Error('respuesta sin "datos" — revisa la api_key o el código de radar');
+  // Volcamos SIEMPRE el paso 1 (trae estado/datos/metadatos): así se ve si el
+  // código de radar es correcto (estado 200) o no (404) y la URL de la imagen.
+  showRawDebug('AEMET radar (paso 1) · code=' + AEMET_RADAR.code, meta);
+  if (!meta.datos) throw new Error('sin "datos" (estado ' + (meta.estado ?? '?') + ') — revisa api_key o el código de radar');
   // Metadatos (para calibrar bounds): no bloqueamos si fallan.
   if (meta.metadatos) {
     try { showRawDebug('AEMET radar metadatos', await (await fetch(meta.metadatos)).json()); }
@@ -335,8 +338,11 @@ async function toggleRadar(on) {
     const imgUrl = await fetchAemetRadar(aemetKey);
     const opacity = (+document.getElementById('radarOpacity').value || 60) / 100;
     radarLayer = L.imageOverlay(imgUrl, AEMET_RADAR.bounds, { opacity, interactive: false });
+    // Confirmamos si la imagen del radar carga de verdad (o si falla).
+    radarLayer.on('load', () => setStatus('Radar AEMET cargado (encuadre aproximado, a calibrar). Si no ves ecos, es que no hay precipitación ahora.', 'ok'));
+    radarLayer.on('error', () => setStatus('Radar: la imagen no cargó (¿URL caducada o bloqueada?).', 'warn'));
     radarLayer.addTo(map);
-    setStatus('Radar AEMET cargado (encuadre aproximado, pendiente de calibrar).', 'ok');
+    setStatus('Radar: imagen solicitada…');
   } catch (e) {
     setStatus('Radar: ' + e.message, 'warn');
     document.getElementById('radarToggle').checked = false;
