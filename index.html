@@ -284,15 +284,17 @@ async function fetchAemet(apiKey) {
 
    CONFIRMADO con el JSON crudo real (12/08/2026):
      - location: GeoJSON Point con coordinates [lon, lat].
-     - datastreams en inglés: "Air temperature (avg.)", "Wind speed (avg.)"…
-       (ver VAR_MATCHERS) con cualificadores (avg./max./min./acc.) → grafcanRank.
-     - unitOfMeasurement es un objeto {name, symbol, definition} → grafcanToDisplay
-       convierte viento m/s→km/h si el símbolo lo indica.
+     - observations_last?thing=ID NO es un array: es un objeto
+         { thing, count, observations:[{name, value, unitOfMeasurement, resultTime}] }
+       y cada observación se autodescribe → no hace falta cruzar /datastreams/.
+     - Variables por nombre en inglés: "Air temperature (avg.)", "Wind speed
+       (avg.)"… (ver VAR_MATCHERS), con variantes avg./max./min./sdev./acc.
+       → grafcanRank elige la representativa (avg, o acc para precipitación).
+     - unitOfMeasurement llega como símbolo ("°C","m/s","mm","%","°","mbar")
+       → grafcanToDisplay convierte el viento m/s→km/h.
      - name legible: viene de la ubicación, no del thing (que es el modelo HW).
-
-   PENDIENTE (necesita ver una respuesta NO vacía de observations_last):
-     - Forma exacta de la observación (¿trae 'datastream' como URI y 'result'?).
-       El panel captura ahora la 1ª respuesta no vacía para confirmarlo.
+     - El endpoint global (sin ?thing=) devuelve vacío: hay que pedir por
+       estación (una llamada por thing de Gran Canaria).
 --------------------------------------------------------------------- */
 
 const GRAFCAN_API = 'https://sensores.grafcan.es/api/v1.0/';
@@ -364,8 +366,8 @@ function grafcanClassify(text) {
 function grafcanRank(text) {
   const t = grafcanNorm(text);
   if (/\bavg\b|\(avg|media|medio/.test(t)) return 3;
-  if (/\bacc\b|\(acc|acumul|total/.test(t)) return 3;
-  if (/\bmax\b|\bmin\b|racha|gust/.test(t)) return 1;
+  if (/\bacc\b|\(acc|accumul|acumul|total/.test(t)) return 3;
+  if (/\bmax\b|\bmin\b|sdev|racha|gust/.test(t)) return 1;
   return 2; // sin cualificador
 }
 
@@ -383,17 +385,14 @@ async function fetchGrafcan(apiKey) {
     lat >= GC_BBOX.latMin && lat <= GC_BBOX.latMax &&
     lon >= GC_BBOX.lonMin && lon <= GC_BBOX.lonMax;
 
-  // 1) Metadatos: estaciones, ubicaciones y series (una llamada paginada c/u).
-  //    page_size grande reduce el nº de páginas; si la API lo ignora, seguimos
-  //    igualmente el enlace "next" hasta agotar.
-  const [things, locations, datastreams] = await Promise.all([
+  // 1) Metadatos: estaciones y ubicaciones (una llamada paginada cada una).
+  //    Ya NO hace falta /datastreams/: observations_last se autodescribe.
+  const [things, locations] = await Promise.all([
     grafcanGetAll(GRAFCAN_API + 'things/?page_size=1000', apiKey),
     grafcanGetAll(GRAFCAN_API + 'locations/?page_size=1000', apiKey),
-    grafcanGetAll(GRAFCAN_API + 'datastreams/?page_size=1000', apiKey),
   ]);
   showRawDebug('things[0]', things[0]);
   showRawDebug('locations[0]', locations[0]);
-  showRawDebug('datastreams[0]', datastreams[0]);
 
   // locId -> {lat, lon, name}. El "name" de la ubicación es el nombre legible
   // ("El Hierro, El Pinar, Malpaso"); el thing.name suele ser el modelo del
@@ -402,19 +401,6 @@ async function fetchGrafcan(apiKey) {
   for (const loc of locations) {
     const c = grafcanCoords(loc);
     if (c) locMeta.set(loc.id, { ...c, name: loc.name || null });
-  }
-
-  // dsId -> {thingId, key, rank, unit}. unitOfMeasurement es un objeto
-  // {name, symbol, definition}; nos quedamos con el símbolo para el viento.
-  const dsMeta = new Map();
-  for (const ds of datastreams) {
-    const text = [ds.name, ds.description].join(' ');
-    dsMeta.set(ds.id, {
-      thingId: grafcanId(ds.thing),
-      key: grafcanClassify(text),
-      rank: grafcanRank(text),
-      unit: (ds.unitOfMeasurement && ds.unitOfMeasurement.symbol) || null,
-    });
   }
 
   // 2) Nos quedamos con las estaciones dentro del bbox de Gran Canaria.
@@ -434,98 +420,50 @@ async function fetchGrafcan(apiKey) {
     if (loc && inBBox(loc.lat, loc.lon)) gcThings.push({ th, loc });
   }
 
-  // --- SONDA DE DIAGNÓSTICO (temporal) --------------------------------------
-  // observations_last devolvió 0: volcamos el CUERPO CRUDO de los endpoints de
-  // observaciones para la 1ª estación de GC, sin pasarlo por el extractor de
-  // arrays, para ver su forma real (dict, paginado, campos...). Se quitará en
-  // cuanto confirmemos el mapeo de observaciones.
-  if (gcThings[0]) {
-    const pid = gcThings[0].th.id;
-    const H = { accept: 'application/json', Authorization: 'Api-Key ' + apiKey };
-    for (const [label, url] of [
-      ['probe observations_last?thing=' + pid, GRAFCAN_API + 'observations_last/?thing=' + pid],
-      ['probe observations?datastream__thing=' + pid, GRAFCAN_API + 'observations/?datastream__thing=' + pid + '&page_size=3'],
-    ]) {
-      try {
-        const r = await fetch(url, { headers: H });
-        const t = await r.text();
-        let j; try { j = JSON.parse(t); } catch { j = { _status: r.status, _nonJSON: t.slice(0, 300) }; }
-        showRawDebug(label, j);
-      } catch (e) { showRawDebug(label, { _error: String(e) }); }
-    }
-  }
-  // --------------------------------------------------------------------------
-
-  // Estación base (sin valores) por thing, indexada por id.
-  const stations = new Map();
-  for (const { th, loc } of gcThings) {
-    stations.set(th.id, {
+  // 3) Últimos valores: observations_last?thing=ID devuelve un OBJETO
+  //    { thing, count, observations:[{name, value, unitOfMeasurement, resultTime}] }
+  //    — auto-descriptivo: clasificamos por "name" (Air temperature (avg.)…),
+  //    elegimos la variante representativa por rango (avg/acc sobre max/min/sdev)
+  //    y convertimos con "unitOfMeasurement" (viento m/s -> km/h).
+  //    Es 1 petición por estación; cuando esto crezca conviene precomputar un
+  //    JSON estático (GitHub Actions) y que el frontend solo lo lea.
+  const H = { accept: 'application/json', Authorization: 'Api-Key ' + apiKey };
+  let obsSampleShown = false;
+  const results = await Promise.all(gcThings.map(async ({ th, loc }) => {
+    const station = {
       id: 'grafcan-' + th.id,
       name: loc.name || th.name || ('Estación ' + th.id),
       lat: loc.lat, lon: loc.lon,
       source: 'GRAFCAN',
       ta: null, hr: null, vv: null, dv: null, prec: null, fint: null,
-      _rank: {}, // rango del datastream que dejó cada valor (uso interno)
-    });
-  }
-
-  // Aplica una observación a la estación que le corresponde (vía datastream).
-  // thingIdHint sirve en el fallback por-estación, donde ya sabemos el thing.
-  function applyObs(o, thingIdHint) {
-    const meta = dsMeta.get(grafcanId(o.datastream)) || {};
-    const st = stations.get(meta.thingId ?? thingIdHint);
-    if (!st) return; // observación de una estación fuera de Gran Canaria
-    const key = meta.key
-      ?? grafcanClassify([o.name, o.observedProperty && o.observedProperty.name].join(' '));
-    if (!key || o.result == null) return;
-    const rank = meta.rank ?? 2;
-    if (rank < (st._rank[key] ?? 0)) return; // no pisar avg/acc con max/min
-    st[key] = grafcanToDisplay(key, o.result, meta.unit);
-    st._rank[key] = rank;
-    st.fint = st.fint || o.phenomenonTime || o.resultTime || null;
-  }
-
-  // 3) Últimos valores. Estrategia A (eficiente): UN barrido global de
-  //    observations_last y lo repartimos por estación (observación ->
-  //    datastream -> thing). Cuando esto crezca conviene precomputar un JSON
-  //    estático (GitHub Actions) y que el frontend solo lo lea.
-  let observations = [];
-  try {
-    observations = await grafcanGetAll(
-      GRAFCAN_API + 'observations_last/?page_size=1000', apiKey, { maxPages: 60 });
-  } catch (_) { /* probamos el fallback por-estación abajo */ }
-  if (observations[0]) showRawDebug('observations_last[global]', observations[0]);
-  const before = [...stations.values()].filter(hasValue).length;
-  for (const o of observations) applyObs(o);
-
-  // Estrategia B (fallback): si el barrido global no aportó valores, pedimos
-  // observations_last?thing= estación por estación.
-  if ([...stations.values()].filter(hasValue).length === before) {
-    let obsSampleShown = false;
-    await Promise.all([...stations.keys()].map(async id => {
-      try {
-        const obs = await grafcanGetAll(
-          GRAFCAN_API + 'observations_last/?thing=' + id, apiKey, { maxPages: 3 });
-        if (!obsSampleShown && obs.length) {
-          obsSampleShown = true;
-          showRawDebug('observations_last[thing=' + id + ']', obs[0]);
+      _rank: {}, // rango de la variante que dejó cada valor (uso interno)
+    };
+    try {
+      const r = await fetch(GRAFCAN_API + 'observations_last/?thing=' + th.id, { headers: H });
+      if (r.ok) {
+        const data = await r.json();
+        const obs = (data && data.observations) || [];
+        if (!obsSampleShown && obs.length) { obsSampleShown = true; showRawDebug('observations_last[thing=' + th.id + ']', data); }
+        for (const o of obs) {
+          const key = grafcanClassify(o.name);
+          if (!key || o.value == null) continue;
+          const rank = grafcanRank(o.name);
+          if (rank < (station._rank[key] ?? 0)) continue; // no pisar avg/acc con max/min/sdev
+          station[key] = grafcanToDisplay(key, o.value, o.unitOfMeasurement);
+          station._rank[key] = rank;
+          station.fint = station.fint || o.resultTime || null;
         }
-        for (const o of obs) applyObs(o, id);
-      } catch (_) { /* estación visible aunque falle su último dato */ }
-    }));
-  }
+      }
+    } catch (_) { /* estación visible en el mapa aunque falle su último dato */ }
+    delete station._rank;
+    return station;
+  }));
 
-  const results = [...stations.values()];
-  results.forEach(s => delete s._rank);
-
-  // Resumen de diagnóstico: en una sola recarga vemos dónde está el problema
-  // (cobertura del bbox, si llegan observaciones, cuántas estaciones con dato).
+  // Resumen de diagnóstico (útil mientras iteramos; se puede quitar en producción).
   showRawDebug('GRAFCAN _resumen', {
     things: things.length,
     locations: locations.length,
-    datastreams: datastreams.length,
     estaciones_en_GranCanaria: results.length,
-    observations_last_global: observations.length,
     estaciones_con_algun_valor: results.filter(hasValue).length,
     bbox: GC_BBOX,
   });
