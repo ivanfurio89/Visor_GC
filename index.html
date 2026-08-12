@@ -117,7 +117,20 @@
   .status .warn{color:var(--ember);}
 
   /* ---------- Map ---------- */
-  #map{flex:1;}
+  #map{flex:1; position:relative;}
+  #timebar{
+    position:absolute; left:50%; transform:translateX(-50%); bottom:18px;
+    z-index:1000; display:flex; align-items:center; gap:12px;
+    background:rgba(21,19,15,.92); border:1px solid var(--line); border-radius:10px;
+    padding:9px 14px; box-shadow:0 6px 20px rgba(0,0,0,.4);
+    width:min(70%, 640px); backdrop-filter:blur(4px);
+  }
+  #timebar button{width:auto; padding:6px 11px; font-size:14px; line-height:1; border-radius:6px;}
+  #timebar input[type=range]{flex:1; margin:0; accent-color:var(--ember);}
+  #timebar #tbLabel{
+    font-family:var(--font-mono); font-size:12px; color:var(--hueso);
+    white-space:nowrap; min-width:132px; text-align:right;
+  }
   .leaflet-popup-content-wrapper{
     background:var(--bg-1); color:var(--hueso); border-radius:8px;
     border:1px solid var(--line);
@@ -192,6 +205,13 @@
 
     <div class="panel">
       <h2>Capas</h2>
+      <label class="remember" for="timeToggle">
+        <input type="checkbox" id="timeToggle"> Evolución temporal
+      </label>
+      <div class="help" id="timeHelp" style="margin-bottom:12px;">
+        Reproduce el mapa en el tiempo (serie horaria de AEMET). Aparece una
+        barra bajo el mapa con control de reproducción.
+      </div>
       <label class="remember" for="interpToggle">
         <input type="checkbox" id="interpToggle"> Interpolación (IDW + altitud)
       </label>
@@ -225,7 +245,13 @@
     <div class="status" id="statusBar">Esperando claves de API…</div>
   </aside>
 
-  <div id="map"></div>
+  <div id="map">
+    <div id="timebar" style="display:none;">
+      <button id="tbPlay" title="Reproducir / pausar">▶</button>
+      <input id="tbSlider" type="range" min="0" max="0" value="0" step="1">
+      <span id="tbLabel">—</span>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -316,29 +342,40 @@ async function fetchAemet(apiKey) {
   const raw = JSON.parse(new TextDecoder('iso-8859-15').decode(await step2.arrayBuffer()));
   if (raw && raw[0]) showRawDebug('AEMET', raw[0]);
 
-  // AEMET "todas" trae VARIOS registros horarios por estación. Nos quedamos
-  // solo con el más reciente (mayor fint) de cada idema; si no, saldrían
-  // decenas de puntos apilados por estación (inflando el conteo y la interp.).
+  // AEMET "todas" trae VARIOS registros horarios por estación. Los agrupamos
+  // por idema para construir la SERIE TEMPORAL (gratis: ya está en la descarga)
+  // y usamos el registro más reciente como valor "actual".
   const gc = raw.filter(s => s.lat >= GC_BBOX.latMin && s.lat <= GC_BBOX.latMax &&
                              s.lon >= GC_BBOX.lonMin && s.lon <= GC_BBOX.lonMax);
-  const ultimo = new Map();
-  for (const s of gc) {
-    const prev = ultimo.get(s.idema);
-    if (!prev || (s.fint || '') > (prev.fint || '')) ultimo.set(s.idema, s);
-  }
+  const porId = new Map();
+  for (const s of gc) { if (!porId.has(s.idema)) porId.set(s.idema, []); porId.get(s.idema).push(s); }
 
-  return [...ultimo.values()].map(s => ({
-    id: 'aemet-' + s.idema,
-    name: s.ubi || s.idema,
-    lat: s.lat, lon: s.lon,
-    source: 'AEMET',
-    ta: s.ta ?? null,
-    hr: s.hr ?? null,
-    vv: (s.vv != null) ? +(s.vv * 3.6).toFixed(1) : null, // m/s -> km/h
-    dv: s.dv ?? null,
-    prec: s.prec ?? null,
-    fint: s.fint ?? null
-  }));
+  return [...porId.values()].map(recs => {
+    recs.sort((a, b) => (a.fint || '').localeCompare(b.fint || '')); // ascendente por hora
+    const last = recs[recs.length - 1];
+    const series = { ta: [], hr: [], vv: [], dv: [], prec: [] };
+    for (const r of recs) {
+      const t = Date.parse(r.fint); if (isNaN(t)) continue;
+      if (r.ta != null) series.ta.push({ t, v: r.ta });
+      if (r.hr != null) series.hr.push({ t, v: r.hr });
+      if (r.vv != null) series.vv.push({ t, v: +(r.vv * 3.6).toFixed(1) });
+      if (r.dv != null) series.dv.push({ t, v: r.dv });
+      if (r.prec != null) series.prec.push({ t, v: r.prec });
+    }
+    return {
+      id: 'aemet-' + last.idema,
+      name: last.ubi || last.idema,
+      lat: last.lat, lon: last.lon,
+      source: 'AEMET',
+      ta: last.ta ?? null,
+      hr: last.hr ?? null,
+      vv: (last.vv != null) ? +(last.vv * 3.6).toFixed(1) : null, // m/s -> km/h
+      dv: last.dv ?? null,
+      prec: last.prec ?? null,
+      fint: last.fint ?? null,
+      series,
+    };
+  });
 }
 
 /* ---------------------------------------------------------------------
@@ -671,9 +708,86 @@ function renderLegend(min, max, scale) {
 
 let currentScale = { variable: 'ta', min: 0, max: 1 }; // escala vigente (la comparten marcadores y superficie IDW)
 
+/* ---------------------------------------------------------------------
+   Línea de tiempo — reproduce el mapa en instantes pasados
+   Cada estación puede llevar `series` = { variable: [{t(ms), v}] } (AEMET la
+   trae gratis en su descarga horaria). En "modo tiempo" usamos el valor en el
+   instante elegido; las estaciones sin serie (p. ej. GRAFCAN, que ahora solo
+   da su último dato) muestran su valor actual.
+--------------------------------------------------------------------- */
+let timeMode = false, timeAxis = [], timeIdx = 0, timePlay = null;
+
+// Valor de la variable en el instante tMs: último registro con t <= tMs.
+function valueAt(s, variable, tMs) {
+  const ser = s.series && s.series[variable];
+  if (!ser || !ser.length) return s[variable] ?? null; // sin serie -> valor actual
+  let v = null;
+  for (const p of ser) { if (p.t <= tMs) v = p.v; else break; }
+  return v;
+}
+
+// Valor a pintar ahora mismo (respeta el modo tiempo).
+function currentValue(s, variable) {
+  return timeMode && timeAxis.length ? valueAt(s, variable, timeAxis[timeIdx]) : (s[variable] ?? null);
+}
+
+// Eje temporal global: instantes únicos ordenados de todas las series.
+function buildTimeAxis() {
+  const set = new Set();
+  for (const s of stations) {
+    if (!s.series) continue;
+    for (const k of ['ta', 'hr', 'vv', 'dv', 'prec']) for (const p of (s.series[k] || [])) set.add(p.t);
+  }
+  return [...set].sort((a, b) => a - b);
+}
+
+function fmtTime(ms) {
+  return new Date(ms).toLocaleString('es-ES', {
+    timeZone: 'Atlantic/Canary', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+  });
+}
+function updateTimeLabel() {
+  document.getElementById('tbLabel').textContent = timeAxis.length ? fmtTime(timeAxis[timeIdx]) : '—';
+}
+function refreshTimeAxis() {
+  timeAxis = buildTimeAxis();
+  const sl = document.getElementById('tbSlider');
+  sl.max = Math.max(0, timeAxis.length - 1);
+  timeIdx = Math.min(timeIdx, Math.max(0, timeAxis.length - 1));
+  sl.value = timeIdx;
+  updateTimeLabel();
+}
+function setTimeIdx(i) {
+  timeIdx = Math.max(0, Math.min(timeAxis.length - 1, i | 0));
+  document.getElementById('tbSlider').value = timeIdx;
+  updateTimeLabel();
+  render();
+}
+function stopPlay() {
+  if (timePlay) { clearInterval(timePlay); timePlay = null; document.getElementById('tbPlay').textContent = '▶'; }
+}
+function playPause() {
+  if (timePlay) { stopPlay(); return; }
+  if (timeAxis.length < 2) return;
+  document.getElementById('tbPlay').textContent = '⏸';
+  timePlay = setInterval(() => setTimeIdx(timeIdx >= timeAxis.length - 1 ? 0 : timeIdx + 1), 900);
+}
+function setTimeMode(on) {
+  timeMode = on;
+  document.getElementById('timebar').style.display = on ? 'flex' : 'none';
+  if (on) {
+    refreshTimeAxis();
+    if (timeAxis.length < 2) setStatus('Evolución temporal: aún no hay serie horaria (carga AEMET primero).', 'warn');
+    setTimeIdx(timeAxis.length - 1); // arrancamos en el instante más reciente
+  } else {
+    stopPlay();
+    render();
+  }
+}
+
 function render() {
   const variable = variableSelect.value;
-  const values = stations.map(s => s[variable]).filter(v => v != null && !isNaN(v));
+  const values = stations.map(s => currentValue(s, variable)).filter(v => v != null && !isNaN(v));
   const min = values.length ? Math.min(...values) : 0;
   const max = values.length ? Math.max(...values) : 1;
   currentScale = { variable, min, max };
@@ -682,7 +796,7 @@ function render() {
 
   markersLayer.clearLayers();
   stations.forEach(s => {
-    const val = s[variable];
+    const val = currentValue(s, variable);
     const marker = L.circleMarker([s.lat, s.lon], {
       radius: 7,
       color: '#15130f',
@@ -811,7 +925,7 @@ async function refreshInterp() {
     // Estaciones con valor de la variable + su altitud del MDT.
     const pts = [];
     for (const s of stations) {
-      const v = s[variable]; if (v == null || isNaN(v)) continue;
+      const v = currentValue(s, variable); if (v == null || isNaN(v)) continue;
       const e = elevAt(dem, s.lat, s.lon); if (e == null) continue;
       pts.push({ lat: s.lat, lon: s.lon, v, e });
     }
@@ -923,6 +1037,8 @@ async function cargar() {
   }
 
   render();
+  // Con datos nuevos, reconstruimos el eje temporal y saltamos al más reciente.
+  if (timeMode) { refreshTimeAxis(); setTimeIdx(timeAxis.length - 1); }
   document.getElementById('btnConectar').disabled = false;
   if (stations.length) {
     setStatus(`Última carga: ${new Date().toLocaleTimeString('es-ES')} · ${stations.length} estaciones`, 'ok');
@@ -947,6 +1063,10 @@ document.getElementById('interpToggle').addEventListener('change', refreshInterp
 document.getElementById('interpOpacity').addEventListener('input', (e) => {
   if (interpLayer) interpLayer.setOpacity((+e.target.value || 75) / 100);
 });
+// Línea de tiempo: modo, deslizador y reproducción.
+document.getElementById('timeToggle').addEventListener('change', (e) => setTimeMode(e.target.checked));
+document.getElementById('tbSlider').addEventListener('input', (e) => { stopPlay(); setTimeIdx(+e.target.value); });
+document.getElementById('tbPlay').addEventListener('click', playPause);
 cargarClavesGuardadas();
 renderLegend(null, null);
 </script>
