@@ -434,6 +434,28 @@ async function fetchGrafcan(apiKey) {
     if (loc && inBBox(loc.lat, loc.lon)) gcThings.push({ th, loc });
   }
 
+  // --- SONDA DE DIAGNÓSTICO (temporal) --------------------------------------
+  // observations_last devolvió 0: volcamos el CUERPO CRUDO de los endpoints de
+  // observaciones para la 1ª estación de GC, sin pasarlo por el extractor de
+  // arrays, para ver su forma real (dict, paginado, campos...). Se quitará en
+  // cuanto confirmemos el mapeo de observaciones.
+  if (gcThings[0]) {
+    const pid = gcThings[0].th.id;
+    const H = { accept: 'application/json', Authorization: 'Api-Key ' + apiKey };
+    for (const [label, url] of [
+      ['probe observations_last?thing=' + pid, GRAFCAN_API + 'observations_last/?thing=' + pid],
+      ['probe observations?datastream__thing=' + pid, GRAFCAN_API + 'observations/?datastream__thing=' + pid + '&page_size=3'],
+    ]) {
+      try {
+        const r = await fetch(url, { headers: H });
+        const t = await r.text();
+        let j; try { j = JSON.parse(t); } catch { j = { _status: r.status, _nonJSON: t.slice(0, 300) }; }
+        showRawDebug(label, j);
+      } catch (e) { showRawDebug(label, { _error: String(e) }); }
+    }
+  }
+  // --------------------------------------------------------------------------
+
   // Estación base (sin valores) por thing, indexada por id.
   const stations = new Map();
   for (const { th, loc } of gcThings) {
