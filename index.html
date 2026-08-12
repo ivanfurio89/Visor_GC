@@ -306,19 +306,26 @@ async function fetchAemet(apiKey) {
    Devolvemos la URL de la imagen para pintarla como L.imageOverlay. Los
    metadatos se vuelcan al panel de depuración para calibrar el encuadre.
 --------------------------------------------------------------------- */
+// fetch con timeout (AbortController) para que ninguna petición se quede
+// colgada indefinidamente (p. ej. el WAF de AEMET reteniendo la conexión).
+function fetchTimeout(url, ms, opts = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
+
 async function fetchAemetRadar(apiKey) {
   const base = 'https://opendata.aemet.es/opendata/api/red/radar/regional/' + AEMET_RADAR.code;
   const url = base + '?api_key=' + encodeURIComponent(apiKey);
-  // El WAF de AEMET (F5 BIG-IP) a veces rechaza la 1ª petición a nivel de red
-  // ("Load failed"/"Failed to fetch"), aunque el endpoint y CORS son correctos.
-  // Reintentamos una vez tras una pausa breve antes de rendirnos.
+  // El WAF de AEMET (F5 BIG-IP) a veces rechaza o retiene la 1ª petición aunque
+  // el endpoint y CORS sean correctos. Reintentamos una vez, con timeout.
   let step1;
   try {
-    step1 = await fetch(url);
+    step1 = await fetchTimeout(url, 12000);
   } catch (e1) {
     await new Promise(r => setTimeout(r, 800));
-    try { step1 = await fetch(url); }
-    catch (e2) { throw new Error('no se pudo conectar (' + e2.message + '). Reintenta; si persiste, míralo en la consola (F12 → Network).'); }
+    try { step1 = await fetchTimeout(url, 12000); }
+    catch (e2) { throw new Error('no se pudo conectar (' + e2.message + '). Reintenta; si persiste, ejecútalo desde un servidor local (ver nota).'); }
   }
   if (!step1.ok) throw new Error('petición inicial falló (' + step1.status + ')');
   const meta = await step1.json();
@@ -326,10 +333,13 @@ async function fetchAemetRadar(apiKey) {
   // código de radar es correcto (estado 200) o no (404) y la URL de la imagen.
   showRawDebug('AEMET radar (paso 1) · code=' + AEMET_RADAR.code, meta);
   if (!meta.datos) throw new Error('sin "datos" (estado ' + (meta.estado ?? '?') + ') — revisa api_key o el código de radar');
-  // Metadatos (para calibrar bounds): no bloqueamos si fallan.
+  // Metadatos (para calibrar bounds): en 2º plano y con timeout. NO bloquean la
+  // imagen — antes un fetch colgado aquí dejaba el radar en "cargando imagen…".
   if (meta.metadatos) {
-    try { showRawDebug('AEMET radar metadatos', await (await fetch(meta.metadatos)).json()); }
-    catch (_) { /* opcional */ }
+    fetchTimeout(meta.metadatos, 8000)
+      .then(r => r.json())
+      .then(md => showRawDebug('AEMET radar metadatos', md))
+      .catch(() => { /* opcional: si falla/tarda, seguimos sin calibrar */ });
   }
   return meta.datos; // URL de la imagen del radar (png/gif)
 }
