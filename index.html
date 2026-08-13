@@ -198,6 +198,7 @@
         <option value="vv">Viento medio (km/h)</option>
         <option value="hr">Humedad relativa (%)</option>
         <option value="prec">Precipitación (mm, últ. 10 min)</option>
+        <option value="dfmc">Humedad comb. muerto (%)</option>
       </select>
       <div class="legend" id="legendBar"></div>
       <div class="legend-labels"><span id="legMin">min</span><span id="legMax">max</span></div>
@@ -760,6 +761,8 @@ function showRawDebug(source, obj) {
 const SCALES = {
   default: ['#2fa8a0', '#4f8f72', '#d7c24a', '#d9622b', '#c1291a'],
   hr: ['#b0121a', '#d9622b', '#f0a24e', '#f5e6b0', '#bfe0ea', '#5aa9d6', '#2c76b8'],
+  // humedad del combustible muerto: seco/bajo = rojo (peligro) → húmedo/alto = verde.
+  dfmc: ['#b0121a', '#d9622b', '#f0a24e', '#f5e6b0', '#9fd08a', '#4f8f72', '#2f7d55'],
 };
 function scaleFor(variable) { return SCALES[variable] || SCALES.default; }
 
@@ -802,6 +805,28 @@ function valueAt(s, variable, tMs) {
 // Valor a pintar ahora mismo (respeta el modo tiempo).
 function currentValue(s, variable) {
   return timeMode && timeAxis.length ? valueAt(s, variable, timeAxis[timeIdx]) : (s[variable] ?? null);
+}
+
+/* ---------------------------------------------------------------------
+   Humedad del combustible fino muerto (HCM / dead fine fuel moisture)
+   Modelo semi-mecanicista de Resco de Dios et al. (2015), aplicado con VPD
+   (Nolan, Resco de Dios et al. 2016):  HCM = FM0 + FM1·e^(−m·VPD)  [%]
+   con VPD = es(T)·(1 − HR/100) [kPa] y es(T)=0.6108·e^(17.27·T/(T+237.3)).
+   OJO: FM0/FM1/m se CALIBRAN por sitio. Estos son los valores generalizados
+   (Nolan et al. 2016) como punto de partida — AJUSTAR para Canarias.
+--------------------------------------------------------------------- */
+const DFMC = { FM0: 5.43, FM1: 52.91, m: 0.64 };
+function computeDFMC(ta, hr) {
+  if (ta == null || hr == null || isNaN(ta) || isNaN(hr)) return null;
+  const es = 0.6108 * Math.exp(17.27 * ta / (ta + 237.3));   // presión de vapor de saturación (kPa)
+  const vpd = Math.max(0, es * (1 - hr / 100));               // déficit de presión de vapor (kPa)
+  return +(DFMC.FM0 + DFMC.FM1 * Math.exp(-DFMC.m * vpd)).toFixed(1);
+}
+
+// Valor de una variable (incluidas las DERIVADAS como 'dfmc') respetando el tiempo.
+function stationValue(s, variable) {
+  if (variable === 'dfmc') return computeDFMC(currentValue(s, 'ta'), currentValue(s, 'hr'));
+  return currentValue(s, variable);
 }
 
 // Eje temporal: rejilla regular (cada TIME_STEP_MIN minutos) entre el primer y
@@ -876,7 +901,7 @@ async function setTimeMode(on) {
 
 function render() {
   const variable = variableSelect.value;
-  const values = stations.map(s => currentValue(s, variable)).filter(v => v != null && !isNaN(v));
+  const values = stations.map(s => stationValue(s, variable)).filter(v => v != null && !isNaN(v));
   const min = values.length ? Math.min(...values) : 0;
   const max = values.length ? Math.max(...values) : 1;
   currentScale = { variable, min, max };
@@ -885,7 +910,7 @@ function render() {
 
   markersLayer.clearLayers();
   stations.forEach(s => {
-    const val = currentValue(s, variable);
+    const val = stationValue(s, variable);
     const marker = L.circleMarker([s.lat, s.lon], {
       radius: 7,
       color: '#15130f',
@@ -925,6 +950,7 @@ function popupHtml(s, activeVar) {
         ${row('Viento', s.vv, ' km/h', 'vv')}
         ${row('Dirección', s.dv, '°', 'dv')}
         ${row('Precipitación', s.prec, ' mm', 'prec')}
+        ${row('HCM (comb. muerto)', computeDFMC(s.ta, s.hr), ' %', 'dfmc')}
       </table>
       <div class="src">${s.source}${s.fint ? ' · ' + s.fint.replace('T',' ').slice(0,16) : ''}</div>
     </div>`;
@@ -1014,7 +1040,7 @@ async function refreshInterp() {
     // Estaciones con valor de la variable + su altitud del MDT.
     const pts = [];
     for (const s of stations) {
-      const v = currentValue(s, variable); if (v == null || isNaN(v)) continue;
+      const v = stationValue(s, variable); if (v == null || isNaN(v)) continue;
       const e = elevAt(dem, s.lat, s.lon); if (e == null) continue;
       pts.push({ lat: s.lat, lon: s.lon, v, e });
     }
