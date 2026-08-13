@@ -663,6 +663,78 @@ function hasValue(s) {
   return s.ta != null || s.hr != null || s.vv != null || s.dv != null || s.prec != null;
 }
 
+/* ---------------------------------------------------------------------
+   GRAFCAN — histórico para la línea de tiempo
+   observations_last solo da el ÚLTIMO valor; para la serie usamos el endpoint
+   /observations/ con ventana temporal. Como NO es autodescriptivo (solo trae
+   result + datastream(URI)), necesitamos el mapa datastream->variable/unidad
+   de /datastreams/. De cada variable elegimos el datastream representativo
+   (mayor rango: avg/acc) para no mezclar max/min/sdev en la serie.
+--------------------------------------------------------------------- */
+let grafcanDsCache = null; // dsId -> {thingId, key, rank, unit}
+
+async function grafcanDatastreams(apiKey) {
+  if (grafcanDsCache) return grafcanDsCache;
+  const ds = await grafcanGetAll(GRAFCAN_API + 'datastreams/?page_size=1000', apiKey);
+  const m = new Map();
+  for (const d of ds) {
+    const text = [d.name, d.description].join(' ');
+    m.set(d.id, {
+      thingId: grafcanId(d.thing),
+      key: grafcanClassify(text),
+      rank: grafcanRank(text),
+      unit: (d.unitOfMeasurement && d.unitOfMeasurement.symbol) || null,
+    });
+  }
+  grafcanDsCache = m;
+  return m;
+}
+
+// Para cada (thing, variable), el dsId representativo (mayor rango). Devuelve
+// dsId -> {key, unit} solo de esos elegidos.
+function grafcanChosenDatastreams(dsMeta, thingIds) {
+  const best = new Map(); // `${thingId}|${key}` -> {dsId, rank, unit, key}
+  for (const [dsId, m] of dsMeta) {
+    if (!m.key || !thingIds.has(m.thingId)) continue;
+    const kk = m.thingId + '|' + m.key, prev = best.get(kk);
+    if (!prev || m.rank > prev.rank) best.set(kk, { dsId, rank: m.rank, unit: m.unit, key: m.key });
+  }
+  const chosen = new Map();
+  for (const b of best.values()) chosen.set(b.dsId, { key: b.key, unit: b.unit });
+  return chosen;
+}
+
+// Rellena station.series de las estaciones GRAFCAN con las últimas `hours` horas.
+async function loadGrafcanHistory(apiKey, hours = 24) {
+  const gc = stations.filter(s => s.source === 'GRAFCAN');
+  if (!gc.length) return;
+  const dsMeta = await grafcanDatastreams(apiKey);
+  const thingIds = new Set(gc.map(s => +String(s.id).replace('grafcan-', '')));
+  const chosen = grafcanChosenDatastreams(dsMeta, thingIds);
+  const since = new Date(Date.now() - hours * 3600000).toISOString();
+  let sampleShown = false;
+  await Promise.all(gc.map(async s => {
+    const thingId = +String(s.id).replace('grafcan-', '');
+    const url = GRAFCAN_API + 'observations/?datastream__thing=' + thingId +
+      '&result_time_after=' + encodeURIComponent(since) + '&page_size=1000';
+    try {
+      const obs = await grafcanGetAll(url, apiKey, { maxPages: 6 });
+      if (!sampleShown && obs.length) { sampleShown = true; showRawDebug('GRAFCAN observations[hist]', obs[0]); }
+      const series = { ta: [], hr: [], vv: [], dv: [], prec: [] };
+      for (const o of obs) {
+        const c = chosen.get(grafcanId(o.datastream));
+        if (!c || o.result == null) continue;
+        // resultTime llega como "2026-08-12 12:10:00+00:00" -> ISO con 'T'.
+        const t = Date.parse(String(o.resultTime || '').replace(' ', 'T'));
+        if (isNaN(t)) continue;
+        series[c.key].push({ t, v: grafcanToDisplay(c.key, o.result, c.unit) });
+      }
+      for (const k in series) series[k].sort((a, b) => a.t - b.t);
+      s.series = series;
+    } catch (_) { /* estación sin serie si falla; seguirá mostrando su valor actual */ }
+  }));
+}
+
 // Acumula una muestra por endpoint para poder inspeccionar/compartir el JSON
 // real de cada recurso a la vez (things, locations, datastreams, observations…).
 const rawSamples = {};
@@ -772,17 +844,20 @@ function playPause() {
   document.getElementById('tbPlay').textContent = '⏸';
   timePlay = setInterval(() => setTimeIdx(timeIdx >= timeAxis.length - 1 ? 0 : timeIdx + 1), 900);
 }
-function setTimeMode(on) {
+async function setTimeMode(on) {
   timeMode = on;
   document.getElementById('timebar').style.display = on ? 'flex' : 'none';
-  if (on) {
-    refreshTimeAxis();
-    if (timeAxis.length < 2) setStatus('Evolución temporal: aún no hay serie horaria (carga AEMET primero).', 'warn');
-    setTimeIdx(timeAxis.length - 1); // arrancamos en el instante más reciente
-  } else {
-    stopPlay();
-    render();
+  if (!on) { stopPlay(); render(); return; }
+  // Primera vez: cargamos el histórico de GRAFCAN (si hay clave y estaciones
+  // sin serie) para que sus 12 estaciones también se muevan en el tiempo.
+  const grafcanKey = document.getElementById('grafcanKey').value.trim();
+  if (grafcanKey && stations.some(s => s.source === 'GRAFCAN' && !s.series)) {
+    setStatus('Evolución temporal: cargando histórico GRAFCAN…');
+    try { await loadGrafcanHistory(grafcanKey); } catch (_) { /* seguimos con lo que haya */ }
   }
+  refreshTimeAxis();
+  if (timeAxis.length < 2) setStatus('Evolución temporal: aún no hay serie temporal (carga datos primero).', 'warn');
+  setTimeIdx(timeAxis.length - 1); // arrancamos en el instante más reciente
 }
 
 function render() {
@@ -1037,8 +1112,15 @@ async function cargar() {
   }
 
   render();
-  // Con datos nuevos, reconstruimos el eje temporal y saltamos al más reciente.
-  if (timeMode) { refreshTimeAxis(); setTimeIdx(timeAxis.length - 1); }
+  // Con datos nuevos, recargamos el histórico GRAFCAN, reconstruimos el eje
+  // temporal y saltamos al instante más reciente.
+  if (timeMode) {
+    if (grafcanKey && stations.some(s => s.source === 'GRAFCAN' && !s.series)) {
+      try { await loadGrafcanHistory(grafcanKey); } catch (_) {}
+    }
+    refreshTimeAxis();
+    setTimeIdx(timeAxis.length - 1);
+  }
   document.getElementById('btnConectar').disabled = false;
   if (stations.length) {
     setStatus(`Última carga: ${new Date().toLocaleTimeString('es-ES')} · ${stations.length} estaciones`, 'ok');
