@@ -148,6 +148,14 @@
     text-shadow:0 0 3px #000, 0 0 3px #000, 0 0 2px #000;
   }
   .leaflet-tooltip.stlabel::before{ display:none; }
+  /* Predicción AEMET */
+  #forecast .fc-name{font-family:var(--font-display); color:var(--hueso); font-size:13px; margin:8px 0 6px;}
+  table.fc{width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:11px;}
+  table.fc td{padding:3px 4px; border-bottom:1px solid var(--bg-2); color:var(--ceniza); vertical-align:top;}
+  table.fc thead td{color:var(--ember); text-transform:uppercase; letter-spacing:.05em; font-size:10px;}
+  table.fc td.v{color:var(--hueso); text-align:right; white-space:nowrap;}
+  #forecast .fc-msg{font-size:11.5px; color:var(--ceniza); margin-top:8px;}
+  #forecast .fc-msg.warn{color:var(--ember);}
 </style>
 </head>
 <body>
@@ -234,6 +242,13 @@
         clave de AEMET. El encuadre es aproximado y se calibra con los metadatos
         reales (panel «JSON crudo»).
       </div>
+    </div>
+
+    <div class="panel">
+      <h2>Predicción AEMET</h2>
+      <label class="field" for="muniSelect">Municipio de Gran Canaria</label>
+      <select id="muniSelect"><option value="">— elige municipio —</option></select>
+      <div id="forecast"></div>
     </div>
 
     <div class="panel" id="debugPanel" style="display:none;">
@@ -1085,6 +1100,79 @@ async function refreshInterp() {
 }
 
 /* ---------------------------------------------------------------------
+   Predicción AEMET por municipio (JSON, patrón de 2 pasos como la observación)
+   Códigos INE de los 21 municipios de Gran Canaria (provincia 35, alfabético).
+   Mostramos el "nombre" que devuelve AEMET, así cualquier código erróneo se ve.
+--------------------------------------------------------------------- */
+const GC_MUNICIPIOS = [
+  ['35001', 'Agaete'], ['35002', 'Agüimes'], ['35005', 'Artenara'], ['35006', 'Arucas'],
+  ['35008', 'Firgas'], ['35009', 'Gáldar'], ['35011', 'Ingenio'], ['35012', 'Mogán'],
+  ['35013', 'Moya'], ['35016', 'Las Palmas de Gran Canaria'], ['35019', 'San Bartolomé de Tirajana'],
+  ['35020', 'La Aldea de San Nicolás'], ['35021', 'Santa Brígida'], ['35022', 'Santa Lucía de Tirajana'],
+  ['35023', 'Santa María de Guía'], ['35025', 'Tejeda'], ['35026', 'Telde'], ['35027', 'Teror'],
+  ['35031', 'Valsequillo de Gran Canaria'], ['35032', 'Valleseco'], ['35033', 'Vega de San Mateo'],
+];
+
+async function fetchPrediccionDiaria(apiKey, code) {
+  const base = 'https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/diaria/' + code;
+  const s1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey));
+  if (!s1.ok) throw new Error('petición inicial falló (' + s1.status + ')');
+  const j = await s1.json();
+  if (!j.datos) throw new Error('sin "datos" — revisa la api_key');
+  const s2 = await fetch(j.datos);
+  if (!s2.ok) throw new Error('no se pudo descargar la predicción (' + s2.status + ')');
+  const raw = JSON.parse(new TextDecoder('iso-8859-15').decode(await s2.arrayBuffer())); // AEMET va en ISO-8859-15
+  return raw[0];
+}
+
+// De un array por periodos, coge el de día completo (00-24) o el 1º con dato.
+function fcPick(arr, field) {
+  if (!Array.isArray(arr) || !arr.length) return null;
+  const ne = arr.filter(x => x[field] != null && x[field] !== '');
+  return ne.find(x => x.periodo === '00-24') || ne[0] || arr[0];
+}
+function fcMaxProb(arr) {
+  if (!Array.isArray(arr)) return null;
+  const v = arr.map(x => +x.value).filter(n => !isNaN(n));
+  return v.length ? Math.max(...v) : null;
+}
+
+function renderForecast(muni) {
+  const el = document.getElementById('forecast');
+  const dias = (muni && muni.prediccion && muni.prediccion.dia) || [];
+  if (!dias.length) { el.innerHTML = '<div class="fc-msg warn">Sin datos de predicción.</div>'; return; }
+  const rows = dias.slice(0, 6).map(d => {
+    const fecha = new Date(d.fecha).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' });
+    const t = d.temperatura || {};
+    const cielo = fcPick(d.estadoCielo, 'descripcion');
+    const prob = fcMaxProb(d.probPrecipitacion);
+    const v = fcPick(d.viento, 'velocidad');
+    const viento = v && v.velocidad != null ? `${v.velocidad} km/h ${v.direccion || ''}`.trim() : '—';
+    return `<tr>
+      <td>${fecha}</td>
+      <td class="v">${t.minima ?? '–'}–${t.maxima ?? '–'}°</td>
+      <td class="v">${prob != null ? prob + '%' : '—'}</td>
+      <td>${cielo ? (cielo.descripcion || '') : ''}<br><span style="opacity:.7">${viento}</span></td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="fc-name">${muni.nombre || ''}</div>
+    <table class="fc"><thead><tr><td>Día</td><td class="v">T °C</td><td class="v">Lluvia</td><td>Cielo · viento</td></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+async function cargarPrediccion(code) {
+  const el = document.getElementById('forecast');
+  if (!code) { el.innerHTML = ''; return; }
+  const aemetKey = document.getElementById('aemetKey').value.trim();
+  if (!aemetKey) { el.innerHTML = '<div class="fc-msg warn">Introduce la clave de AEMET para ver la predicción.</div>'; return; }
+  el.innerHTML = '<div class="fc-msg">Cargando predicción…</div>';
+  try {
+    renderForecast(await fetchPrediccionDiaria(aemetKey, code));
+  } catch (e) {
+    el.innerHTML = '<div class="fc-msg warn">Predicción: ' + e.message + '</div>';
+  }
+}
+
+/* ---------------------------------------------------------------------
    Persistencia opcional de claves (opt-in) en localStorage del navegador.
    NUNCA se escriben en el código ni en el repo. Si el usuario desmarca
    "Recordar", se borran. Es almacenamiento por-origen del navegador: cómodo
@@ -1189,6 +1277,12 @@ document.getElementById('interpOpacity').addEventListener('input', (e) => {
 document.getElementById('timeToggle').addEventListener('change', (e) => setTimeMode(e.target.checked));
 document.getElementById('tbSlider').addEventListener('input', (e) => { stopPlay(); setTimeIdx(+e.target.value); });
 document.getElementById('tbPlay').addEventListener('click', playPause);
+// Predicción AEMET: poblar el selector de municipios y escuchar cambios.
+const muniSel = document.getElementById('muniSelect');
+GC_MUNICIPIOS.slice().sort((a, b) => a[1].localeCompare(b[1], 'es')).forEach(([code, name]) => {
+  const o = document.createElement('option'); o.value = code; o.textContent = name; muniSel.appendChild(o);
+});
+muniSel.addEventListener('change', (e) => cargarPrediccion(e.target.value));
 cargarClavesGuardadas();
 renderLegend(null, null);
 </script>
