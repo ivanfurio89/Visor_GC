@@ -209,8 +209,9 @@
         <input type="checkbox" id="timeToggle"> Evolución temporal
       </label>
       <div class="help" id="timeHelp" style="margin-bottom:12px;">
-        Reproduce el mapa en el tiempo (serie horaria de AEMET). Aparece una
-        barra bajo el mapa con control de reproducción.
+        Reproduce el mapa en el tiempo, en pasos de 30 min (últimas ~24 h).
+        Combina el histórico de AEMET y GRAFCAN. Aparece una barra bajo el mapa
+        con control de reproducción.
       </div>
       <label class="remember" for="interpToggle">
         <input type="checkbox" id="interpToggle"> Interpolación (IDW + altitud)
@@ -803,14 +804,27 @@ function currentValue(s, variable) {
   return timeMode && timeAxis.length ? valueAt(s, variable, timeAxis[timeIdx]) : (s[variable] ?? null);
 }
 
-// Eje temporal global: instantes únicos ordenados de todas las series.
+// Eje temporal: rejilla regular (cada TIME_STEP_MIN minutos) entre el primer y
+// el último instante con datos. Así se alinean fuentes con cadencias distintas
+// (AEMET horario, GRAFCAN 10-min) y el deslizador tiene pasos limpios (:00/:30);
+// en cada instante cada estación usa su último valor <= ese momento (valueAt).
+const TIME_STEP_MIN = 30;
 function buildTimeAxis() {
-  const set = new Set();
+  let tmin = Infinity, tmax = -Infinity;
   for (const s of stations) {
     if (!s.series) continue;
-    for (const k of ['ta', 'hr', 'vv', 'dv', 'prec']) for (const p of (s.series[k] || [])) set.add(p.t);
+    for (const k of ['ta', 'hr', 'vv', 'dv', 'prec']) for (const p of (s.series[k] || [])) {
+      if (p.t < tmin) tmin = p.t; if (p.t > tmax) tmax = p.t;
+    }
   }
-  return [...set].sort((a, b) => a - b);
+  if (!isFinite(tmin)) return [];
+  const step = TIME_STEP_MIN * 60000;
+  const start = Math.ceil(tmin / step) * step;   // primer múltiplo del paso >= tmin
+  const end = Math.floor(tmax / step) * step;    // último múltiplo del paso <= tmax
+  if (end < start) return [tmax];
+  const axis = [];
+  for (let t = start; t <= end; t += step) axis.push(t);
+  return axis;
 }
 
 function fmtTime(ms) {
