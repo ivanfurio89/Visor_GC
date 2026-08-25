@@ -1026,6 +1026,25 @@ function stationValue(s, variable) {
   return currentValue(s, variable);
 }
 
+/* ---------------------------------------------------------------------
+   Dominios de color FIJOS (absolutos), no relativos al min/max del momento.
+   Antes el mismo valor (p. ej. 20°C) podía salir de un color distinto según
+   qué otras estaciones hubiera en ese instante — y no era comparable entre
+   horas de la línea de tiempo ni entre sesiones. Con umbrales fijos, el rojo
+   siempre significa "calor real", no "lo más caliente de ahora mismo".
+   Rango orientado a Gran Canaria y a vigilancia de incendios; AJUSTAR si la
+   práctica muestra que hace falta (p. ej. una ola de calor por encima de 36°C
+   saturaría en el rojo más intenso, que es el comportamiento esperado).
+--------------------------------------------------------------------- */
+const VAR_DOMAIN = {
+  ta: { min: 12, max: 36 },     // °C: noche fría en cumbre -> día caluroso/calima
+  vv: { min: 0, max: 60 },      // km/h viento medio
+  hr: { min: 0, max: 100 },     // % — rango natural completo
+  prec: { min: 0, max: 20 },    // mm en 10 min — la mayoría de lecturas son 0
+  dfmc: { min: DFMC.FM0, max: DFMC.FM0 + DFMC.FM1 }, // límites propios del modelo
+};
+function domainFor(variable) { return VAR_DOMAIN[variable] || null; }
+
 // Eje temporal: rejilla regular (cada TIME_STEP_MIN minutos) entre el primer y
 // el último instante con datos. Así se alinean fuentes con cadencias distintas
 // (AEMET horario, GRAFCAN 10-min) y el deslizador tiene pasos limpios (:00/:30);
@@ -1098,9 +1117,16 @@ async function setTimeMode(on) {
 
 function render() {
   const variable = variableSelect.value;
-  const values = stations.map(s => stationValue(s, variable)).filter(v => v != null && !isNaN(v));
-  const min = values.length ? Math.min(...values) : 0;
-  const max = values.length ? Math.max(...values) : 1;
+  const dom = domainFor(variable);
+  let min, max;
+  if (dom) {
+    min = dom.min; max = dom.max; // umbral fijo: comparable entre horas/sesiones
+  } else {
+    // reserva: solo si alguna variable futura no tuviera dominio fijo definido
+    const values = stations.map(s => stationValue(s, variable)).filter(v => v != null && !isNaN(v));
+    min = values.length ? Math.min(...values) : 0;
+    max = values.length ? Math.max(...values) : 1;
+  }
   currentScale = { variable, min, max };
   const scale = scaleFor(variable);
   renderLegend(Math.round(min), Math.round(max), scale);
