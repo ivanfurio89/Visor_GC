@@ -305,7 +305,9 @@ function parseCsv(text) {
 async function fetchFirmsSource(mapKey, source, bbox, dias) {
   const area = `${bbox.lonMin},${bbox.latMin},${bbox.lonMax},${bbox.latMax}`;
   const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${area}/${dias}`;
-  const r = await fetchConReintento(url);
+  let r;
+  try { r = await fetchConReintento(url); }
+  catch (e) { throw new Error(e.message + (e.cause ? ' — causa: ' + e.cause : '')); }
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const text = await r.text();
   // Errores de FIRMS vienen como texto plano ("Invalid MAP_KEY", límite, etc.)
