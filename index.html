@@ -334,6 +334,25 @@
 // nacional de AEMET, que devuelve TODAS las estaciones de España.
 const GC_BBOX = { latMin: 27.65, latMax: 28.23, lonMin: -15.95, lonMax: -15.30 };
 
+// Frescura de los datos: observations_last (GRAFCAN) y "todas" (AEMET) dan el
+// ÚLTIMO valor conocido de una estación aunque el sensor lleve días sin
+// reportar (una estación averiada puede quedarse "congelada" en su última
+// lectura para siempre). Si esa lectura es más vieja que este umbral, no la
+// tratamos como dato actual (se pone a null: gris en el mapa, fuera de la
+// interpolación) — pero SÍ guardamos `fint` para que el popup explique desde
+// cuándo no reporta, en vez de ocultarlo sin más.
+const FRESH_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 h
+function esObsoleta(fechaISO) {
+  const t = Date.parse(fechaISO || '');
+  return isNaN(t) || (Date.now() - t) > FRESH_MAX_AGE_MS;
+}
+function descartarSiObsoleta(estacion) {
+  if (esObsoleta(estacion.fint)) {
+    estacion.ta = estacion.hr = estacion.vv = estacion.dv = estacion.prec = null;
+  }
+  return estacion;
+}
+
 // Radar de precipitación de AEMET (regional). Código correcto confirmado en
 // el Swagger de la propia API: "ca" = Canarias (el "?p=LPA" de la web pública
 // de AEMET es un parámetro de OTRO sistema, no de este endpoint OpenData).
@@ -441,7 +460,7 @@ async function fetchAemet(apiKey) {
       if (r.dv != null) series.dv.push({ t, v: r.dv });
       if (r.prec != null) series.prec.push({ t, v: r.prec });
     }
-    return {
+    return descartarSiObsoleta({
       id: 'aemet-' + last.idema,
       name: last.ubi || last.idema,
       lat: last.lat, lon: last.lon,
@@ -453,7 +472,7 @@ async function fetchAemet(apiKey) {
       prec: last.prec ?? null,
       fint: last.fint ?? null,
       series,
-    };
+    });
   });
 }
 
@@ -823,7 +842,7 @@ async function fetchGrafcan(apiKey) {
       }
     } catch (_) { /* estación visible en el mapa aunque falle su último dato */ }
     delete station._rank;
-    return station;
+    return descartarSiObsoleta(station);
   }));
 
   // Resumen de diagnóstico (útil mientras iteramos; se puede quitar en producción).

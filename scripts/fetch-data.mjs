@@ -20,6 +20,24 @@ const FIRMS_MAP_KEY = process.env.FIRMS_MAP_KEY || ''; // opcional: focos activo
 
 const GC_BBOX = { latMin: 27.65, latMax: 28.23, lonMin: -15.95, lonMax: -15.30 };
 
+// Frescura de los datos: observations_last (GRAFCAN) y "todas" (AEMET) dan el
+// ÚLTIMO valor conocido de una estación aunque el sensor lleve días sin
+// reportar (una estación averiada se queda "congelada" en su última lectura
+// para siempre). Si esa lectura es más vieja que este umbral, no la tratamos
+// como dato actual (null: gris en el mapa, fuera de la interpolación) — pero
+// se guarda `fint` para que el popup explique desde cuándo no reporta.
+const FRESH_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 h
+function esObsoleta(fechaISO) {
+  const t = Date.parse(fechaISO || '');
+  return isNaN(t) || (Date.now() - t) > FRESH_MAX_AGE_MS;
+}
+function descartarSiObsoleta(estacion) {
+  if (esObsoleta(estacion.fint)) {
+    estacion.ta = estacion.hr = estacion.vv = estacion.dv = estacion.prec = null;
+  }
+  return estacion;
+}
+
 /* ---------------------------------------------------------------------
    AEMET OpenData — igual que en index.html: 2 pasos, ISO-8859-15, filtro
    por bbox, agrupado por idema en series + último valor.
@@ -52,7 +70,7 @@ async function fetchAemet(apiKey) {
       if (r.dv != null) series.dv.push({ t, v: r.dv });
       if (r.prec != null) series.prec.push({ t, v: r.prec });
     }
-    return {
+    return descartarSiObsoleta({
       id: 'aemet-' + last.idema,
       name: last.ubi || last.idema,
       lat: last.lat, lon: last.lon,
@@ -64,7 +82,7 @@ async function fetchAemet(apiKey) {
       prec: last.prec ?? null,
       fint: last.fint ?? null,
       series,
-    };
+    });
   });
 }
 
@@ -190,7 +208,7 @@ async function fetchGrafcan(apiKey) {
       }
     } catch (_) { /* estación sin dato si falla; sigue visible */ }
     delete station._rank;
-    return station;
+    return descartarSiObsoleta(station);
   }));
 }
 
