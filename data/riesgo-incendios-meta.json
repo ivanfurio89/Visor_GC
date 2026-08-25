@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-08-25T10:17:26.306Z",
+  "generatedAt": "2026-08-25T10:25:22.739Z",
   "path": "incendios/mapasriesgo/previsto/dia/1/area/c",
   "file": "riesgo-incendios.png",
   "metadatos": {
-    "unidad_generadora": "Servicio de Aplicaciones Agr�colas e Hidrol�gicas",
-    "descripci�n": "Mapa de niveles de riesgo meteorol�gico de incedios forestales",
+    "unidad_generadora": "Servicio de Aplicaciones Agrícolas e Hidrológicas",
+    "descripción": "Mapa de niveles de riesgo meteorológico de incedios forestales",
     "periodicidad": "diario",
     "formato": "image/png",
-    "copyright": "� AEMET. Autorizado el uso de la informaci�n y su reproducci�n citando a AEMET como autora de la misma.",
+    "copyright": "© AEMET. Autorizado el uso de la información y su reproducción citando a AEMET como autora de la misma.",
     "notaLegal": "https://www.aemet.es/es/nota_legal"
   }
 }

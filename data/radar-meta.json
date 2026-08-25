@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-08-25T10:17:24.300Z",
+  "generatedAt": "2026-08-25T10:25:20.659Z",
   "path": "red/radar/regional/ca",
   "file": "radar.gif",
   "metadatos": {
-    "unidad_generadora": "Teledetecci�n Terrestre",
+    "unidad_generadora": "Teledetección Terrestre",
     "descripcion": "PPI (Z) de cada radar regional",
     "periodicidad": "cada 10 minutos",
     "formato": "image/gif",
-    "copyright": "� AEMET. Autorizado el uso de la informaci�n y su reproducci�n citando a AEMET como autora de la misma.",
+    "copyright": "© AEMET. Autorizado el uso de la información y su reproducción citando a AEMET como autora de la misma.",
     "notaLegal": "https://www.aemet.es/es/nota_legal"
   }
 }
