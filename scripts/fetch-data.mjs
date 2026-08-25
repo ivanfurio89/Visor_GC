@@ -307,7 +307,15 @@ async function fetchFirmsSource(mapKey, source, bbox, dias) {
   const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${area}/${dias}`;
   let r;
   try { r = await fetchConReintento(url); }
-  catch (e) { throw new Error(e.message + (e.cause ? ' — causa: ' + e.cause : '')); }
+  catch (e) {
+    // AggregateError trae varios sub-errores (uno por IP probada, p. ej. una
+    // por IPv6 y otra por IPv4); los volcamos todos para saber cuál es real.
+    const causa = e.cause;
+    const detalle = causa && Array.isArray(causa.errors)
+      ? causa.errors.map(er => er.code || er.message).join(' | ')
+      : (causa ? String(causa.code || causa.message || causa) : '');
+    throw new Error(e.message + (detalle ? ' — causa: ' + detalle : ''));
+  }
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const text = await r.text();
   // Errores de FIRMS vienen como texto plano ("Invalid MAP_KEY", límite, etc.)
