@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-25T10:14:14.235Z",
+  "generatedAt": "2026-08-25T10:17:26.307Z",
   "sources": {
     "aemet": {
       "ok": true,
@@ -10,17 +10,10 @@
       "count": 12
     },
     "radar": {
-      "ok": false,
-      "intentos": [
-        {
-          "path": "red/radar/regional/lpa",
-          "error": "paso 1 (red/radar/regional/lpa): fetch failed — causa: SocketError: other side closed"
-        },
-        {
-          "path": "red/radar/regional/gc",
-          "error": "sin \"datos\" (estado 404: Error al obtener los datos)"
-        }
-      ]
+      "ok": true,
+      "bytes": 6222,
+      "path": "red/radar/regional/ca",
+      "intentos": []
     },
     "riesgo-incendios": {
       "ok": true,
