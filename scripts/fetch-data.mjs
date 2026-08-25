@@ -210,17 +210,34 @@ function extFromContentType(ct) {
   return 'png';
 }
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// AEMET corta la conexión de vez en cuando (SocketError: other side closed),
+// de forma intermitente y no ligada a una ruta concreta. Reintentamos con
+// espera creciente antes de rendirnos.
+async function fetchConReintento(url, intentos = 3) {
+  let ultimoError;
+  for (let i = 0; i < intentos; i++) {
+    try { return await fetch(url); }
+    catch (e) {
+      ultimoError = e;
+      if (i < intentos - 1) await sleep(1500 * (i + 1));
+    }
+  }
+  throw ultimoError;
+}
+
 async function fetchAemetImageProduct(apiKey, path) {
   const base = 'https://opendata.aemet.es/opendata/api/' + path;
   let step1;
-  try { step1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey)); }
+  try { step1 = await fetchConReintento(base + '?api_key=' + encodeURIComponent(apiKey)); }
   catch (e) { throw new Error('paso 1 (' + path + '): ' + e.message + (e.cause ? ' — causa: ' + e.cause : '')); }
   if (!step1.ok) throw new Error('petición inicial falló (' + step1.status + ')');
   const j = await step1.json();
   if (!j.datos) throw new Error('sin "datos" (estado ' + (j.estado ?? '?') + (j.descripcion ? ': ' + j.descripcion : '') + ')');
 
   let imgResp;
-  try { imgResp = await fetch(j.datos); }
+  try { imgResp = await fetchConReintento(j.datos); }
   catch (e) { throw new Error('descarga de imagen: ' + e.message + (e.cause ? ' — causa: ' + e.cause : '')); }
   if (!imgResp.ok) throw new Error('no se pudo descargar la imagen (' + imgResp.status + ')');
   const contentType = imgResp.headers.get('content-type') || 'image/png';
@@ -296,10 +313,12 @@ async function main() {
 
   if (AEMET_API_KEY) {
     await guardarProductoImagen(AEMET_API_KEY, ['red/radar/regional/lpa', 'red/radar/regional/gc'], 'radar', sources);
+    // "previsto/dia/1" es la que de verdad tiene datos ahora mismo (probado);
+    // dejamos las otras como reserva por si el producto disponible cambia.
     await guardarProductoImagen(AEMET_API_KEY, [
-      'incendios/mapasriesgo/estimado/area/c',
-      'incendios/mapasriesgo/previsto/dia/0/area/c',
       'incendios/mapasriesgo/previsto/dia/1/area/c',
+      'incendios/mapasriesgo/previsto/dia/0/area/c',
+      'incendios/mapasriesgo/estimado/area/c',
     ], 'riesgo-incendios', sources);
   }
 
