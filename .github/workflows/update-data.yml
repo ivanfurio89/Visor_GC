@@ -29,6 +29,9 @@ jobs:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
           GRAFCAN_API_KEY: ${{ secrets.GRAFCAN_API_KEY }}
           FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          # El runner de GitHub resuelve AAAA (IPv6) para firms.modaps.eosdis.nasa.gov
+          # pero no tiene ruta real (ENETUNREACH) -> forzamos IPv4 primero.
+          NODE_OPTIONS: --dns-result-order=ipv4first
         run: node scripts/fetch-data.mjs
 
       - name: Commit y push si hay cambios
