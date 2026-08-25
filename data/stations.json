@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-25T10:06:48.170Z",
+  "generatedAt": "2026-08-25T10:10:47.155Z",
   "sources": {
     "aemet": {
       "ok": true,
@@ -11,11 +11,31 @@
     },
     "radar": {
       "ok": false,
-      "error": "fetch failed"
+      "intentos": [
+        {
+          "path": "red/radar/regional/lpa",
+          "error": "paso 1 (red/radar/regional/lpa): fetch failed — causa: SocketError: other side closed"
+        },
+        {
+          "path": "red/radar/regional/gc",
+          "error": "sin \"datos\" (estado 404: Error al obtener los datos)"
+        }
+      ]
     },
     "riesgo-incendios": {
-      "ok": false,
-      "error": "sin \"datos\" (estado 404)"
+      "ok": true,
+      "bytes": 90387,
+      "path": "incendios/mapasriesgo/previsto/dia/1/area/c",
+      "intentos": [
+        {
+          "path": "incendios/mapasriesgo/estimado/area/c",
+          "error": "sin \"datos\" (estado 404: No hay datos que satisfagan esos criterios)"
+        },
+        {
+          "path": "incendios/mapasriesgo/previsto/dia/0/area/c",
+          "error": "paso 1 (incendios/mapasriesgo/previsto/dia/0/area/c): fetch failed — causa: SocketError: other side closed"
+        }
+      ]
     }
   },
   "stations": [
@@ -5875,12 +5895,12 @@
       "lat": 28.14059497904326,
       "lon": -15.63233351579239,
       "source": "GRAFCAN",
-      "ta": 23.48,
-      "hr": 74.42,
-      "vv": 11.2,
-      "dv": 52.7,
+      "ta": 23.71,
+      "hr": 73.52,
+      "vv": 10.6,
+      "dv": 59.7,
       "prec": 0,
-      "fint": "2026-08-25T09:50:00"
+      "fint": "2026-08-25T10:00:00"
     },
     {
       "id": "grafcan-10",
