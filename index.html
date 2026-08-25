@@ -1293,6 +1293,30 @@ function guardarClaves(aemetKey, grafcanKey) {
   } catch (_) { /* si el storage falla, simplemente no se recuerdan */ }
 }
 
+/* ---------------------------------------------------------------------
+   Modo estático (backend) — si existe data/stations.json (lo escribe
+   scripts/fetch-data.mjs vía GitHub Actions cada 15 min), lo usamos
+   directamente: sin claves, sin CORS, sin el WAF de AEMET desde el
+   navegador. Se prueba al arrancar; si no existe (p. ej. en file:// antes de
+   la primera ejecución del workflow, o si aún no se ha desplegado), no pasa
+   nada: el visor sigue funcionando con claves en vivo como siempre.
+--------------------------------------------------------------------- */
+async function intentarCargaEstatica() {
+  try {
+    const r = await fetch('data/stations.json', { cache: 'no-store' });
+    if (!r.ok) return false;
+    const j = await r.json();
+    if (!Array.isArray(j.stations) || !j.stations.length) return false;
+    stations = j.stations;
+    render();
+    const cuando = j.generatedAt
+      ? new Date(j.generatedAt).toLocaleString('es-ES', { timeZone: 'Atlantic/Canary', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })
+      : '?';
+    setStatus(`Datos del backend · generados ${cuando} · ${stations.length} estaciones`, 'ok');
+    return true;
+  } catch (_) { return false; } // sin conexión, sin fichero, o file:// sin el JSON aún: seguimos con el modo en vivo
+}
+
 async function cargar() {
   const aemetKey = document.getElementById('aemetKey').value.trim();
   const grafcanKey = document.getElementById('grafcanKey').value.trim();
@@ -1381,6 +1405,7 @@ document.getElementById('fcHoraria').addEventListener('click', () => {
 });
 cargarClavesGuardadas();
 renderLegend(null, null);
+intentarCargaEstatica(); // si el backend ya ha dejado datos, los pintamos sin pedir claves
 </script>
 </body>
 </html>

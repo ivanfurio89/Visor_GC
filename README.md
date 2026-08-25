@@ -13,6 +13,27 @@ Un único archivo (`index.html`) listo para publicarse en **GitHub Pages**.
 | **AEMET OpenData** | `observacion/convencional/todas` | Devuelve toda España; se filtra al bounding box de Gran Canaria. Petición en 2 pasos (endpoint → URL en `datos` → JSON). |
 | **GRAFCAN Sensores** (Gobierno de Canarias) | `sensores.grafcan.es/api/v1.0/` | API tipo OGC SensorThings sobre Django REST Framework. Los valores se obtienen cruzando `things` + `locations` + `datastreams` + `observations_last`. |
 
+## Backend (GitHub Actions) — datos precomputados
+
+`scripts/fetch-data.mjs` es la misma lógica de descarga/mapeo que usa el
+visor (AEMET + GRAFCAN), portada a Node. `.github/workflows/update-data.yml`
+lo ejecuta **cada 15 min** con las claves como *Secrets* del repo y escribe
+`data/stations.json` (commit automático).
+
+El visor, al arrancar, intenta cargar `data/stations.json` (`intentarCargaEstatica()`)
+**antes** de pedir claves. Si existe, lo usa directamente: sin claves en el
+navegador, sin CORS, sin el WAF de AEMET. Si no existe (repo recién clonado,
+`file://` antes de la primera ejecución del workflow), el visor sigue
+funcionando igual que siempre con el modo de claves en vivo.
+
+Para activarlo en tu repo:
+1. *Settings → Secrets and variables → Actions* → crea `AEMET_API_KEY` y
+   `GRAFCAN_API_KEY`.
+2. *Settings → Actions → General → Workflow permissions* → **Read and write
+   permissions** (para que el workflow pueda hacer commit de `data/`).
+3. Lánzalo una vez a mano desde la pestaña **Actions** (*"Actualizar datos
+   del visor" → Run workflow*) para no esperar 15 min.
+
 ## Claves de API — fuera del código fuente
 
 **El repositorio no contiene ninguna clave de API.** El visor las pide en
@@ -58,7 +79,11 @@ lo lea — arquitectura ya prevista en los comentarios de `index.html`.
 
 ## Estado
 
-- [x] AEMET: descarga, filtrado por Gran Canaria y pintado por variable.
-- [x] GRAFCAN: pipeline correcto (things + locations + datastreams + observations_last).
-- [ ] GRAFCAN: confirmar nombres exactos de datastreams/observedProperty y la
-      unidad del viento con el JSON real (panel de depuración) — ver `VAR_MATCHERS`.
+- [x] AEMET: descarga, filtrado por Gran Canaria, histórico y pintado por variable.
+- [x] GRAFCAN: pipeline correcto (things + locations + observations_last), verificado con datos reales.
+- [x] Mapas base (oscuro/ortofoto/topográfico/relieve), interpolación IDW+altitud,
+      línea de tiempo, humedad de combustible muerto, predicción AEMET (diaria/horaria).
+- [x] Backend GitHub Actions: `data/stations.json` precomputado cada 15 min.
+- [ ] Radar / rayos / riesgo de incendios de AEMET (capas imagen): en standby —
+      mismo patrón que el resto, pendiente de mover su descarga al backend
+      también (para evitar el WAF de AEMET desde el navegador).
