@@ -64,6 +64,20 @@
     display:flex; align-items:center; justify-content:space-between;
   }
   .panel h2 .count{color:var(--hueso);}
+  /* Panel colapsable (<details>/<summary>), p. ej. "Claves de acceso" una vez
+     el backend ya ha cargado datos solo. */
+  details.panel{padding:16px 20px;}
+  details.panel > summary{cursor:pointer; list-style:none;}
+  details.panel > summary::-webkit-details-marker{display:none;}
+  details.panel > summary h2{margin:0;}
+  details.panel > summary h2::before{
+    content:'▾'; display:inline-block; margin-right:6px; color:var(--ember);
+    transition:transform .15s; transform-origin:50% 45%;
+  }
+  details.panel:not([open]) > summary h2::before{transform:rotate(-90deg);}
+  details.panel:not([open]) > summary h2{margin:0;}
+  details.panel[open] > summary h2{margin:0 0 12px 0;}
+  #clavesEstado{font-size:10.5px; color:var(--verde);}
 
   label.field{display:block; font-size:12px; color:var(--ceniza); margin-bottom:5px;}
   input[type=text], input[type=password], select{
@@ -172,8 +186,17 @@
       <p>Visor en tiempo real — base para el visor operativo de vigilancia de incendios.</p>
     </div>
 
-    <div class="panel">
-      <h2>Claves de acceso</h2>
+    <details class="panel" id="clavesPanel" open>
+      <summary>
+        <h2>Claves de acceso <span class="count" id="clavesEstado"></span></h2>
+      </summary>
+      <div class="help" id="clavesIntro" style="margin-top:0; margin-bottom:10px;">
+        El visor carga los datos solo desde el backend (se actualiza cada
+        15 min, sin clave). Estas claves solo hacen falta para:
+        <b>predicción de AEMET</b>, el <b>histórico de GRAFCAN</b> en la
+        línea de tiempo, o para <b>forzar una recarga en vivo</b> más
+        reciente que la del backend.
+      </div>
       <label class="field" for="aemetKey">AEMET OpenData — API key</label>
       <input type="password" id="aemetKey" placeholder="pega aquí tu api_key">
       <label class="field" for="grafcanKey">GRAFCAN Sensores — API key</label>
@@ -181,7 +204,7 @@
       <label class="remember" for="rememberKeys">
         <input type="checkbox" id="rememberKeys"> Recordar en este navegador
       </label>
-      <button id="btnConectar">Cargar datos</button>
+      <button id="btnConectar">Cargar datos en vivo</button>
       <div class="help">
         AEMET: solicita la clave en <a href="https://opendata.aemet.es/centrodedescargas/inicio" target="_blank">opendata.aemet.es</a> (llega por email, gratis).<br>
         GRAFCAN: solicítala en <a href="https://sensores.grafcan.es" target="_blank">sensores.grafcan.es</a>.<br>
@@ -189,7 +212,7 @@
         en el <em>almacenamiento local de este navegador</em> (nunca en el código ni
         en el repositorio); desmárcalo para borrarlas.
       </div>
-    </div>
+    </details>
 
     <div class="panel">
       <h2>Fuentes <span class="count" id="totalCount">0 estaciones</span></h2>
@@ -1445,6 +1468,12 @@ async function intentarCargaEstatica() {
       ? new Date(j.generatedAt).toLocaleString('es-ES', { timeZone: 'Atlantic/Canary', hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })
       : '?';
     setStatus(`Datos del backend · generados ${cuando} · ${stations.length} estaciones`, 'ok');
+    // Ya hay datos sin clave: colapsamos el panel (se puede reabrir a mano
+    // para la predicción, el histórico GRAFCAN o forzar una recarga en vivo).
+    const clavesPanel = document.getElementById('clavesPanel');
+    if (clavesPanel) clavesPanel.open = false;
+    const clavesEstado = document.getElementById('clavesEstado');
+    if (clavesEstado) clavesEstado.textContent = `✓ cargado (backend, ${cuando})`;
     return true;
   } catch (_) { return false; } // sin conexión, sin fichero, o file:// sin el JSON aún: seguimos con el modo en vivo
 }
