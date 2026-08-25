@@ -312,7 +312,9 @@ async function main() {
   await mkdir('data', { recursive: true });
 
   if (AEMET_API_KEY) {
-    await guardarProductoImagen(AEMET_API_KEY, ['red/radar/regional/lpa', 'red/radar/regional/gc'], 'radar', sources);
+    // Código correcto confirmado en el Swagger de AEMET: "ca" = Canarias.
+    // ("lpa"/"gc" eran una suposición de la web pública, no de esta API).
+    await guardarProductoImagen(AEMET_API_KEY, ['red/radar/regional/ca'], 'radar', sources);
     // "previsto/dia/1" es la que de verdad tiene datos ahora mismo (probado);
     // dejamos las otras como reserva por si el producto disponible cambia.
     await guardarProductoImagen(AEMET_API_KEY, [

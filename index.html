@@ -295,14 +295,15 @@
 // nacional de AEMET, que devuelve TODAS las estaciones de España.
 const GC_BBOX = { latMin: 27.65, latMax: 28.23, lonMin: -15.95, lonMax: -15.30 };
 
-// Radar de precipitación de AEMET (regional). El radar de Canarias es "lpa"
-// (la web de AEMET lo referencia como ?p=LPA); si no cargara, prueba "gc".
+// Radar de precipitación de AEMET (regional). Código correcto confirmado en
+// el Swagger de la propia API: "ca" = Canarias (el "?p=LPA" de la web pública
+// de AEMET es un parámetro de OTRO sistema, no de este endpoint OpenData).
 // Es un ÚNICO fotograma que AEMET refresca ~cada 10 min.
 // OJO: `bounds` es el encuadre geográfico de la imagen [ [latSur,lonOeste],
 // [latNorte,lonEste] ] y es APROXIMADO — hay que calibrarlo con los metadatos
 // reales (se vuelcan en el panel «JSON crudo» al activar el radar).
 const AEMET_RADAR = {
-  code: 'lpa',
+  code: 'ca',
   bounds: [[26.6, -18.9], [30.0, -12.7]],
   opacity: 0.6,
 };
