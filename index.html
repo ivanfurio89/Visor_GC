@@ -156,6 +156,10 @@
   table.fc td.v{color:var(--hueso); text-align:right; white-space:nowrap;}
   #forecast .fc-msg{font-size:11.5px; color:var(--ceniza); margin-top:8px;}
   #forecast .fc-msg.warn{color:var(--ember);}
+  .seg-fc{display:flex; gap:6px; margin:8px 0 4px;}
+  .fc-tab{width:auto; padding:5px 11px; font-size:11px; border-radius:6px;
+    background:var(--bg-0); border:1px solid var(--line); color:var(--ceniza); cursor:pointer;}
+  .fc-tab.on{background:var(--ember); color:#1c1108; border-color:var(--ember-dim);}
 </style>
 </head>
 <body>
@@ -248,6 +252,10 @@
       <h2>Predicción AEMET</h2>
       <label class="field" for="muniSelect">Municipio de Gran Canaria</label>
       <select id="muniSelect"><option value="">— elige municipio —</option></select>
+      <div class="seg-fc">
+        <button id="fcDiaria" class="fc-tab on" type="button">Diaria</button>
+        <button id="fcHoraria" class="fc-tab" type="button">Horaria</button>
+      </div>
       <div id="forecast"></div>
     </div>
 
@@ -1159,6 +1167,81 @@ function renderForecast(muni) {
     <table class="fc"><thead><tr><td>Día</td><td class="v">T °C</td><td class="v">Lluvia</td><td>Cielo · viento</td></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
+/* ---------------------------------------------------------------------
+   Predicción HORARIA de AEMET (mismo endpoint/patrón que la diaria, pero con
+   más estructura: temperatura/humedad/cielo van por HORA ("periodo":"00".."23")
+   y la probabilidad de precipitación por bloques de 6 h ("0006","0612",
+   "1218","1824"). El viento viene bajo "vientoAndRachaMax". Como no lo he
+   podido verificar con datos reales, el parseo es defensivo (admite valores
+   sueltos o en array) y volcamos la respuesta cruda al panel de depuración
+   para calibrar si algo no encaja — mismo patrón que usamos con GRAFCAN.
+--------------------------------------------------------------------- */
+let fcMode = 'diaria';
+
+async function fetchPrediccionHoraria(apiKey, code) {
+  const base = 'https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/horaria/' + code;
+  const s1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey));
+  if (!s1.ok) throw new Error('petición inicial falló (' + s1.status + ')');
+  const j = await s1.json();
+  if (!j.datos) throw new Error('sin "datos" — revisa la api_key');
+  const s2 = await fetch(j.datos);
+  if (!s2.ok) throw new Error('no se pudo descargar la predicción (' + s2.status + ')');
+  const raw = JSON.parse(new TextDecoder('iso-8859-15').decode(await s2.arrayBuffer()));
+  const muni = raw[0];
+  const dia0 = muni && muni.prediccion && muni.prediccion.dia && muni.prediccion.dia[0];
+  if (dia0) showRawDebug('AEMET predicción horaria (día 0)', dia0);
+  return muni;
+}
+
+const fcUnwrap = v => Array.isArray(v) ? v[0] : v; // algunos campos horarios vienen en array de 1
+function fcHourItem(arr, hh) {
+  if (!Array.isArray(arr)) return null;
+  return arr.find(x => String(x.periodo).padStart(2, '0') === hh) || null;
+}
+function fcBlockFor(hh) {
+  const h = +hh;
+  if (h < 6) return '0006'; if (h < 12) return '0612'; if (h < 18) return '1218'; return '1824';
+}
+
+function renderForecastHoraria(muni) {
+  const el = document.getElementById('forecast');
+  const dias = (muni && muni.prediccion && muni.prediccion.dia) || [];
+  if (!dias.length) { el.innerHTML = '<div class="fc-msg warn">Sin datos de predicción horaria.</div>'; return; }
+  const now = new Date();
+  const rows = [];
+  for (let di = 0; di < dias.length && rows.length < 12; di++) {
+    const d = dias[di];
+    const base = new Date(d.fecha);
+    for (let h = 0; h < 24 && rows.length < 12; h++) {
+      const dt = new Date(base); dt.setHours(h, 0, 0, 0);
+      if (dt.getTime() < now.getTime() - 3600000) continue; // ya pasada (1h de margen)
+      const hh = String(h).padStart(2, '0');
+      const tItem = fcHourItem(d.temperatura, hh);
+      const hrItem = fcHourItem(d.humedadRelativa, hh);
+      const cItem = fcHourItem(d.estadoCielo, hh);
+      const vItem = fcHourItem(d.vientoAndRachaMax, hh);
+      const probItem = Array.isArray(d.probPrecipitacion) ? d.probPrecipitacion.find(x => x.periodo === fcBlockFor(hh)) : null;
+      rows.push({
+        label: dt.toLocaleString('es-ES', { timeZone: 'Atlantic/Canary', weekday: 'short', hour: '2-digit' }),
+        t: tItem ? fcUnwrap(tItem.value) : null,
+        hr: hrItem ? fcUnwrap(hrItem.value) : null,
+        cielo: cItem ? (cItem.descripcion || '') : '',
+        prob: probItem ? fcUnwrap(probItem.value) : null,
+        viento: vItem ? `${fcUnwrap(vItem.velocidad) ?? ''} km/h ${fcUnwrap(vItem.direccion) ?? ''}`.trim() : '—',
+      });
+    }
+  }
+  const trs = rows.map(r => `<tr>
+      <td>${r.label}</td>
+      <td class="v">${r.t ?? '–'}°</td>
+      <td class="v">${r.hr ?? '–'}%</td>
+      <td class="v">${r.prob != null ? r.prob + '%' : '—'}</td>
+      <td>${r.cielo}<br><span style="opacity:.7">${r.viento}</span></td>
+    </tr>`).join('');
+  el.innerHTML = `<div class="fc-name">${muni.nombre || ''} · próximas horas</div>
+    <table class="fc"><thead><tr><td>Hora</td><td class="v">T°</td><td class="v">HR</td><td class="v">Lluvia</td><td>Cielo · viento</td></tr></thead><tbody>${trs}</tbody></table>`;
+}
+
 async function cargarPrediccion(code) {
   const el = document.getElementById('forecast');
   if (!code) { el.innerHTML = ''; return; }
@@ -1166,7 +1249,8 @@ async function cargarPrediccion(code) {
   if (!aemetKey) { el.innerHTML = '<div class="fc-msg warn">Introduce la clave de AEMET para ver la predicción.</div>'; return; }
   el.innerHTML = '<div class="fc-msg">Cargando predicción…</div>';
   try {
-    renderForecast(await fetchPrediccionDiaria(aemetKey, code));
+    if (fcMode === 'horaria') renderForecastHoraria(await fetchPrediccionHoraria(aemetKey, code));
+    else renderForecast(await fetchPrediccionDiaria(aemetKey, code));
   } catch (e) {
     el.innerHTML = '<div class="fc-msg warn">Predicción: ' + e.message + '</div>';
   }
@@ -1283,6 +1367,18 @@ GC_MUNICIPIOS.slice().sort((a, b) => a[1].localeCompare(b[1], 'es')).forEach(([c
   const o = document.createElement('option'); o.value = code; o.textContent = name; muniSel.appendChild(o);
 });
 muniSel.addEventListener('change', (e) => cargarPrediccion(e.target.value));
+document.getElementById('fcDiaria').addEventListener('click', () => {
+  fcMode = 'diaria';
+  document.getElementById('fcDiaria').classList.add('on');
+  document.getElementById('fcHoraria').classList.remove('on');
+  cargarPrediccion(muniSel.value);
+});
+document.getElementById('fcHoraria').addEventListener('click', () => {
+  fcMode = 'horaria';
+  document.getElementById('fcHoraria').classList.add('on');
+  document.getElementById('fcDiaria').classList.remove('on');
+  cargarPrediccion(muniSel.value);
+});
 cargarClavesGuardadas();
 renderLegend(null, null);
 </script>
