@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-25T10:54:28.250Z",
+  "generatedAt": "2026-08-25T10:56:32.699Z",
   "sources": {
     "aemet": {
       "ok": true,
@@ -11,7 +11,7 @@
     },
     "radar": {
       "ok": true,
-      "bytes": 6230,
+      "bytes": 6215,
       "path": "red/radar/regional/ca",
       "intentos": []
     },
@@ -20,6 +20,10 @@
       "bytes": 90387,
       "path": "incendios/mapasriesgo/previsto/dia/1/area/c",
       "intentos": []
+    },
+    "firms": {
+      "ok": true,
+      "count": 0
     }
   },
   "stations": [
