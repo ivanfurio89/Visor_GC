@@ -212,12 +212,16 @@ function extFromContentType(ct) {
 
 async function fetchAemetImageProduct(apiKey, path) {
   const base = 'https://opendata.aemet.es/opendata/api/' + path;
-  const step1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey));
+  let step1;
+  try { step1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey)); }
+  catch (e) { throw new Error('paso 1 (' + path + '): ' + e.message + (e.cause ? ' — causa: ' + e.cause : '')); }
   if (!step1.ok) throw new Error('petición inicial falló (' + step1.status + ')');
   const j = await step1.json();
-  if (!j.datos) throw new Error('sin "datos" (estado ' + (j.estado ?? '?') + ')');
+  if (!j.datos) throw new Error('sin "datos" (estado ' + (j.estado ?? '?') + (j.descripcion ? ': ' + j.descripcion : '') + ')');
 
-  const imgResp = await fetch(j.datos);
+  let imgResp;
+  try { imgResp = await fetch(j.datos); }
+  catch (e) { throw new Error('descarga de imagen: ' + e.message + (e.cause ? ' — causa: ' + e.cause : '')); }
   if (!imgResp.ok) throw new Error('no se pudo descargar la imagen (' + imgResp.status + ')');
   const contentType = imgResp.headers.get('content-type') || 'image/png';
   const image = Buffer.from(await imgResp.arrayBuffer());
@@ -233,20 +237,27 @@ async function fetchAemetImageProduct(apiKey, path) {
 }
 
 // Descarga un producto-imagen y escribe data/<slug>.<ext> + data/<slug>-meta.json.
-async function guardarProductoImagen(apiKey, path, slug, sources) {
-  try {
-    const { image, ext, metadatos } = await fetchAemetImageProduct(apiKey, path);
-    const file = `${slug}.${ext}`;
-    await writeFile(`data/${file}`, image);
-    await writeFile(`data/${slug}-meta.json`, JSON.stringify({
-      generatedAt: new Date().toISOString(), file, metadatos,
-    }, null, 2));
-    sources[slug] = { ok: true, bytes: image.length };
-    console.log(`${slug}: imagen guardada (${image.length} bytes, data/${file})`);
-  } catch (e) {
-    sources[slug] = { ok: false, error: e.message };
-    console.error(`${slug} error:`, e.message);
+// Admite varias rutas candidatas (se prueban en orden; se queda con la 1ª que
+// funcione) — útil mientras no sabemos con certeza cuál da datos de verdad.
+async function guardarProductoImagen(apiKey, paths, slug, sources) {
+  const intentos = [];
+  for (const path of (Array.isArray(paths) ? paths : [paths])) {
+    try {
+      const { image, ext, metadatos } = await fetchAemetImageProduct(apiKey, path);
+      const file = `${slug}.${ext}`;
+      await writeFile(`data/${file}`, image);
+      await writeFile(`data/${slug}-meta.json`, JSON.stringify({
+        generatedAt: new Date().toISOString(), path, file, metadatos,
+      }, null, 2));
+      sources[slug] = { ok: true, bytes: image.length, path, intentos };
+      console.log(`${slug}: imagen guardada (${image.length} bytes, data/${file}, ruta: ${path})`);
+      return;
+    } catch (e) {
+      intentos.push({ path, error: e.message });
+      console.error(`${slug}: falló ${path} — ${e.message}`);
+    }
   }
+  sources[slug] = { ok: false, intentos };
 }
 
 async function main() {
@@ -284,8 +295,12 @@ async function main() {
   await mkdir('data', { recursive: true });
 
   if (AEMET_API_KEY) {
-    await guardarProductoImagen(AEMET_API_KEY, 'red/radar/regional/lpa', 'radar', sources);
-    await guardarProductoImagen(AEMET_API_KEY, 'incendios/mapasriesgo/estimado/area/c', 'riesgo-incendios', sources);
+    await guardarProductoImagen(AEMET_API_KEY, ['red/radar/regional/lpa', 'red/radar/regional/gc'], 'radar', sources);
+    await guardarProductoImagen(AEMET_API_KEY, [
+      'incendios/mapasriesgo/estimado/area/c',
+      'incendios/mapasriesgo/previsto/dia/0/area/c',
+      'incendios/mapasriesgo/previsto/dia/1/area/c',
+    ], 'riesgo-incendios', sources);
   }
 
   await writeFile('data/stations.json', JSON.stringify({
