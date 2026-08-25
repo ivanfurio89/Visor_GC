@@ -196,6 +196,59 @@ async function fetchGrafcan(apiKey) {
 /* ---------------------------------------------------------------------
    main
 --------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------
+   Productos de imagen de AEMET (radar, riesgo de incendios) — mismo patrón
+   de 2 pasos, pero aquí descargamos la IMAGEN en bruto (no JSON) y los
+   metadatos, y los dejamos como ficheros estáticos. Esto es justo lo que
+   evita el problema del WAF de AEMET colgando el fetch desde el navegador:
+   la petición la hace el runner de GitHub, no el cliente.
+--------------------------------------------------------------------- */
+function extFromContentType(ct) {
+  if (/gif/i.test(ct || '')) return 'gif';
+  if (/jpe?g/i.test(ct || '')) return 'jpg';
+  return 'png';
+}
+
+async function fetchAemetImageProduct(apiKey, path) {
+  const base = 'https://opendata.aemet.es/opendata/api/' + path;
+  const step1 = await fetch(base + '?api_key=' + encodeURIComponent(apiKey));
+  if (!step1.ok) throw new Error('petición inicial falló (' + step1.status + ')');
+  const j = await step1.json();
+  if (!j.datos) throw new Error('sin "datos" (estado ' + (j.estado ?? '?') + ')');
+
+  const imgResp = await fetch(j.datos);
+  if (!imgResp.ok) throw new Error('no se pudo descargar la imagen (' + imgResp.status + ')');
+  const contentType = imgResp.headers.get('content-type') || 'image/png';
+  const image = Buffer.from(await imgResp.arrayBuffer());
+
+  let metadatos = null;
+  if (j.metadatos) {
+    try {
+      const mr = await fetch(j.metadatos);
+      if (mr.ok) metadatos = await mr.json();
+    } catch (_) { /* opcional: si falla, seguimos sin metadatos */ }
+  }
+  return { image, ext: extFromContentType(contentType), metadatos };
+}
+
+// Descarga un producto-imagen y escribe data/<slug>.<ext> + data/<slug>-meta.json.
+async function guardarProductoImagen(apiKey, path, slug, sources) {
+  try {
+    const { image, ext, metadatos } = await fetchAemetImageProduct(apiKey, path);
+    const file = `${slug}.${ext}`;
+    await writeFile(`data/${file}`, image);
+    await writeFile(`data/${slug}-meta.json`, JSON.stringify({
+      generatedAt: new Date().toISOString(), file, metadatos,
+    }, null, 2));
+    sources[slug] = { ok: true, bytes: image.length };
+    console.log(`${slug}: imagen guardada (${image.length} bytes, data/${file})`);
+  } catch (e) {
+    sources[slug] = { ok: false, error: e.message };
+    console.error(`${slug} error:`, e.message);
+  }
+}
+
 async function main() {
   if (!AEMET_API_KEY && !GRAFCAN_API_KEY) {
     console.error('Faltan AEMET_API_KEY / GRAFCAN_API_KEY como variables de entorno.');
@@ -229,6 +282,12 @@ async function main() {
   }
 
   await mkdir('data', { recursive: true });
+
+  if (AEMET_API_KEY) {
+    await guardarProductoImagen(AEMET_API_KEY, 'red/radar/regional/lpa', 'radar', sources);
+    await guardarProductoImagen(AEMET_API_KEY, 'incendios/mapasriesgo/estimado/area/c', 'riesgo-incendios', sources);
+  }
+
   await writeFile('data/stations.json', JSON.stringify({
     generatedAt: new Date().toISOString(),
     sources,
@@ -243,7 +302,7 @@ async function main() {
   }
 }
 
-export { fetchAemet, fetchGrafcan, grafcanClassify, grafcanRank, grafcanToDisplay, grafcanId, grafcanCoords, GC_BBOX };
+export { fetchAemet, fetchGrafcan, grafcanClassify, grafcanRank, grafcanToDisplay, grafcanId, grafcanCoords, GC_BBOX, main, fetchAemetImageProduct };
 
 // Solo ejecuta main() si se invoca directamente (node fetch-data.mjs), no al
 // importar las funciones desde un test.
