@@ -247,7 +247,9 @@ async function fetchAemetImageProduct(apiKey, path) {
   if (j.metadatos) {
     try {
       const mr = await fetch(j.metadatos);
-      if (mr.ok) metadatos = await mr.json();
+      // Igual que el resto de AEMET, este JSON viene en ISO-8859-15, no UTF-8
+      // (si no, "descripción" sale como "descripci�n").
+      if (mr.ok) metadatos = JSON.parse(new TextDecoder('iso-8859-15').decode(await mr.arrayBuffer()));
     } catch (_) { /* opcional: si falla, seguimos sin metadatos */ }
   }
   return { image, ext: extFromContentType(contentType), metadatos };

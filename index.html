@@ -241,10 +241,19 @@
       </label>
       <label class="field" for="radarOpacity" style="margin-top:4px;">Opacidad del radar</label>
       <input type="range" id="radarOpacity" min="0" max="100" value="60" style="width:100%;">
+      <div class="help" style="margin-bottom:12px;">
+        Imagen del radar regional de Canarias (refresco ~10 min). La sirve el
+        backend (sin clave); si aún no hay datos, cae al modo en vivo. El
+        encuadre es aproximado, calibrado a ojo con la imagen real.
+      </div>
+      <label class="remember" for="riesgoToggle">
+        <input type="checkbox" id="riesgoToggle"> Riesgo de incendios (AEMET · IPIF)
+      </label>
+      <label class="field" for="riesgoOpacity" style="margin-top:4px;">Opacidad del riesgo</label>
+      <input type="range" id="riesgoOpacity" min="0" max="100" value="70" style="width:100%;">
       <div class="help">
-        Imagen del radar regional de Canarias (refresco ~10 min). Requiere la
-        clave de AEMET. El encuadre es aproximado y se calibra con los metadatos
-        reales (panel «JSON crudo»).
+        Mapa de niveles de peligro de incendio forestal (índice IPIF de AEMET,
+        previsión a 24 h), servido por el backend. Sin clave necesaria.
       </div>
     </div>
 
@@ -304,8 +313,21 @@ const GC_BBOX = { latMin: 27.65, latMax: 28.23, lonMin: -15.95, lonMax: -15.30 }
 // reales (se vuelcan en el panel «JSON crudo» al activar el radar).
 const AEMET_RADAR = {
   code: 'ca',
-  bounds: [[26.6, -18.9], [30.0, -12.7]],
+  // Encuadre re-calibrado a ojo con la imagen REAL (círculo de ~240 km de
+  // alcance centrado cerca de Gran Canaria; antes era una caja sin relación
+  // con la física del radar). Sigue siendo aproximado — se puede afinar
+  // comparando visualmente el círculo contra la costa real del mapa base.
+  bounds: [[25.8, -18.0], [30.1, -13.1]],
   opacity: 0.6,
+};
+
+// Mapa de riesgo de incendios de AEMET (IPIF, previsión). Imagen rectangular
+// normal (más fácil de encuadrar que el PPI circular del radar); bounds
+// estimados con la posición conocida de El Hierro/La Palma/Lanzarote dentro
+// de la imagen real (incluye un margen a la derecha por la leyenda de color).
+const AEMET_RIESGO = {
+  bounds: [[26.9, -18.85], [30.2, -11.6]],
+  opacity: 0.7,
 };
 
 const map = L.map('map', { zoomControl: true }).setView([27.955, -15.585], 11);
@@ -449,29 +471,79 @@ async function fetchAemetRadar(apiKey) {
   return meta.datos; // URL de la imagen del radar (png/gif)
 }
 
+// Imágenes precomputadas por el backend (scripts/fetch-data.mjs + GitHub
+// Actions): data/<slug>.<ext> + data/<slug>-meta.json. Si existen, las usamos
+// directamente — sin clave, sin WAF. null si el backend aún no las ha
+// generado (repo recién clonado, o esa capa no está montada todavía).
+async function cargarImagenEstatica(slug) {
+  try {
+    const r = await fetch(`data/${slug}-meta.json`, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const meta = await r.json();
+    if (!meta.file) return null;
+    const t = Date.parse(meta.generatedAt || '') || Date.now();
+    return { url: `data/${meta.file}?t=${t}`, meta };
+  } catch (_) { return null; }
+}
+
 // Muestra u oculta la capa de radar. Se llama desde el checkbox y tras cargar.
+// Prueba primero el radar precomputado por el backend; si no existe, cae al
+// modo en vivo (pide la clave de AEMET, con el reintento habitual del WAF).
 async function toggleRadar(on) {
   if (radarLayer) { map.removeLayer(radarLayer); radarLayer = null; }
   if (!on) return;
-  const aemetKey = document.getElementById('aemetKey').value.trim();
-  if (!aemetKey) {
-    setStatus('Radar: necesita la clave de AEMET.', 'warn');
-    document.getElementById('radarToggle').checked = false;
-    return;
-  }
   try {
-    setStatus('Radar: cargando imagen…');
-    const imgUrl = await fetchAemetRadar(aemetKey);
+    setStatus('Radar: cargando…');
     const opacity = (+document.getElementById('radarOpacity').value || 60) / 100;
+    const estatico = await cargarImagenEstatica('radar');
+    let imgUrl;
+    if (estatico) {
+      imgUrl = estatico.url;
+      showRawDebug('AEMET radar (backend)', estatico.meta);
+    } else {
+      const aemetKey = document.getElementById('aemetKey').value.trim();
+      if (!aemetKey) {
+        setStatus('Radar: necesita la clave de AEMET (no hay datos del backend todavía).', 'warn');
+        document.getElementById('radarToggle').checked = false;
+        return;
+      }
+      imgUrl = await fetchAemetRadar(aemetKey);
+    }
     radarLayer = L.imageOverlay(imgUrl, AEMET_RADAR.bounds, { opacity, interactive: false });
     // Confirmamos si la imagen del radar carga de verdad (o si falla).
     radarLayer.on('load', () => setStatus('Radar AEMET cargado (encuadre aproximado, a calibrar). Si no ves ecos, es que no hay precipitación ahora.', 'ok'));
     radarLayer.on('error', () => setStatus('Radar: la imagen no cargó (¿URL caducada o bloqueada?).', 'warn'));
     radarLayer.addTo(map);
-    setStatus('Radar: imagen solicitada…');
   } catch (e) {
     setStatus('Radar: ' + e.message, 'warn');
     document.getElementById('radarToggle').checked = false;
+  }
+}
+
+// Mapa de riesgo de incendios (IPIF de AEMET) — solo backend por ahora: se
+// generan por el mismo proceso que el radar, pero no hay ruta en vivo desde
+// el navegador (evitamos repetir el problema del WAF para este producto).
+let riesgoLayer = null;
+async function toggleRiesgo(on) {
+  if (riesgoLayer) { map.removeLayer(riesgoLayer); riesgoLayer = null; }
+  if (!on) return;
+  try {
+    setStatus('Riesgo de incendios: cargando…');
+    const estatico = await cargarImagenEstatica('riesgo-incendios');
+    if (!estatico) {
+      setStatus('Riesgo de incendios: aún no generado por el backend (se actualiza cada 15 min).', 'warn');
+      document.getElementById('riesgoToggle').checked = false;
+      return;
+    }
+    showRawDebug('AEMET riesgo incendios (backend)', estatico.meta);
+    const opacity = (+document.getElementById('riesgoOpacity').value || 70) / 100;
+    riesgoLayer = L.imageOverlay(estatico.url, AEMET_RIESGO.bounds, { opacity, interactive: false });
+    riesgoLayer.on('load', () => setStatus('Riesgo de incendios cargado · ' + (estatico.meta.path || ''), 'ok'));
+    riesgoLayer.on('error', () => setStatus('Riesgo de incendios: la imagen no cargó.', 'warn'));
+    riesgoLayer.addTo(map);
+  } catch (e) {
+    setStatus('Riesgo de incendios: ' + e.message, 'warn');
+    document.getElementById('riesgoToggle').checked = false;
   }
 }
 
@@ -1376,6 +1448,11 @@ document.getElementById('rememberKeys').addEventListener('change', (e) => {
 document.getElementById('radarToggle').addEventListener('change', (e) => toggleRadar(e.target.checked));
 document.getElementById('radarOpacity').addEventListener('input', (e) => {
   if (radarLayer) radarLayer.setOpacity((+e.target.value || 60) / 100);
+});
+// Riesgo de incendios (IPIF): activar/desactivar y opacidad en vivo.
+document.getElementById('riesgoToggle').addEventListener('change', (e) => toggleRiesgo(e.target.checked));
+document.getElementById('riesgoOpacity').addEventListener('input', (e) => {
+  if (riesgoLayer) riesgoLayer.setOpacity((+e.target.value || 70) / 100);
 });
 // Interpolación IDW+altitud: activar/desactivar y opacidad en vivo.
 document.getElementById('interpToggle').addEventListener('change', refreshInterp);
