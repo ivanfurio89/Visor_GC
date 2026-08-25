@@ -24,10 +24,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Descargar AEMET + GRAFCAN
+      - name: Descargar AEMET + GRAFCAN + FIRMS
         env:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
           GRAFCAN_API_KEY: ${{ secrets.GRAFCAN_API_KEY }}
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
         run: node scripts/fetch-data.mjs
 
       - name: Commit y push si hay cambios

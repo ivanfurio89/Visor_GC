@@ -251,9 +251,16 @@
       </label>
       <label class="field" for="riesgoOpacity" style="margin-top:4px;">Opacidad del riesgo</label>
       <input type="range" id="riesgoOpacity" min="0" max="100" value="70" style="width:100%;">
-      <div class="help">
+      <div class="help" style="margin-bottom:12px;">
         Mapa de niveles de peligro de incendio forestal (índice IPIF de AEMET,
         previsión a 24 h), servido por el backend. Sin clave necesaria.
+      </div>
+      <label class="remember" for="firmsToggle">
+        <input type="checkbox" id="firmsToggle"> Focos activos (NASA FIRMS)
+      </label>
+      <div class="help">
+        Detecciones de calor por satélite (VIIRS, últimos 2 días), servidas
+        por el backend. Sin clave necesaria en el navegador.
       </div>
     </div>
 
@@ -545,6 +552,57 @@ async function toggleRiesgo(on) {
   } catch (e) {
     setStatus('Riesgo de incendios: ' + e.message, 'warn');
     document.getElementById('riesgoToggle').checked = false;
+  }
+}
+
+// Focos activos de calor (NASA FIRMS, satélites VIIRS) — solo backend: es una
+// API de terceros sin CORS, así que no hay modo en vivo desde el navegador.
+let firmsLayer = null;
+function firmsColor(confianza) {
+  return confianza === 'h' ? '#ff3b1f' : confianza === 'n' ? '#ff9800' : '#9e9e9e';
+}
+function firmsConfLabel(c) {
+  return c === 'h' ? 'alta' : c === 'n' ? 'nominal' : c === 'l' ? 'baja' : (c || '—');
+}
+async function toggleFirms(on) {
+  if (firmsLayer) { map.removeLayer(firmsLayer); firmsLayer = null; }
+  if (!on) return;
+  try {
+    setStatus('Focos activos: cargando…');
+    const r = await fetch('data/firms.json', { cache: 'no-store' });
+    if (!r.ok) {
+      setStatus('Focos activos: aún no generado por el backend.', 'warn');
+      document.getElementById('firmsToggle').checked = false;
+      return;
+    }
+    const data = await r.json();
+    const focos = data.focos || [];
+    showRawDebug('FIRMS (backend)', { generatedAt: data.generatedAt, diasVentana: data.diasVentana, count: focos.length, muestra: focos[0] });
+    firmsLayer = L.layerGroup();
+    for (const f of focos) {
+      const horaFmt = f.hora != null ? String(f.hora).padStart(4, '0').replace(/(\d\d)(\d\d)/, '$1:$2') : '—';
+      const marker = L.circleMarker([f.lat, f.lon], {
+        radius: 6, color: '#1c1108', weight: 1,
+        fillColor: firmsColor(f.confianza), fillOpacity: 0.9,
+      });
+      marker.bindPopup(`
+        <div class="popup">
+          <h3>🔥 Foco activo (FIRMS)</h3>
+          <table>
+            <tr><td>Detectado</td><td class="v">${f.fecha || '—'} ${horaFmt} UTC</td></tr>
+            <tr><td>Satélite</td><td class="v">${f.satelite || '—'}</td></tr>
+            <tr><td>Confianza</td><td class="v">${firmsConfLabel(f.confianza)}</td></tr>
+            <tr><td>FRP</td><td class="v">${f.frp != null ? f.frp + ' MW' : '—'}</td></tr>
+            <tr><td>Día/noche</td><td class="v">${f.diaNoche === 'D' ? 'día' : f.diaNoche === 'N' ? 'noche' : '—'}</td></tr>
+          </table>
+        </div>`);
+      marker.addTo(firmsLayer);
+    }
+    firmsLayer.addTo(map);
+    setStatus(`Focos activos: ${focos.length} en los últimos ${data.diasVentana ?? '?'} días.`, focos.length ? 'ok' : 'ok');
+  } catch (e) {
+    setStatus('Focos activos: ' + e.message, 'warn');
+    document.getElementById('firmsToggle').checked = false;
   }
 }
 
@@ -1455,6 +1513,8 @@ document.getElementById('riesgoToggle').addEventListener('change', (e) => toggle
 document.getElementById('riesgoOpacity').addEventListener('input', (e) => {
   if (riesgoLayer) riesgoLayer.setOpacity((+e.target.value || 70) / 100);
 });
+// Focos activos (FIRMS): activar/desactivar.
+document.getElementById('firmsToggle').addEventListener('change', (e) => toggleFirms(e.target.checked));
 // Interpolación IDW+altitud: activar/desactivar y opacidad en vivo.
 document.getElementById('interpToggle').addEventListener('change', refreshInterp);
 document.getElementById('interpOpacity').addEventListener('input', (e) => {

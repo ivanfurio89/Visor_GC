@@ -16,6 +16,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 
 const AEMET_API_KEY = process.env.AEMET_API_KEY || '';
 const GRAFCAN_API_KEY = process.env.GRAFCAN_API_KEY || '';
+const FIRMS_MAP_KEY = process.env.FIRMS_MAP_KEY || ''; // opcional: focos activos NASA FIRMS
 
 const GC_BBOX = { latMin: 27.65, latMax: 28.23, lonMin: -15.95, lonMax: -15.30 };
 
@@ -279,6 +280,59 @@ async function guardarProductoImagen(apiKey, paths, slug, sources) {
   sources[slug] = { ok: false, intentos };
 }
 
+/* ---------------------------------------------------------------------
+   NASA FIRMS — focos de calor activos (VIIRS). API "area" en CSV:
+   /api/area/csv/{MAP_KEY}/{source}/{west,south,east,north}/{días}
+   Combinamos 3 satélites VIIRS (SNPP/NOAA-20/NOAA-21) para mejor cobertura
+   temporal sobre un área tan pequeña como Gran Canaria. confidence viene
+   como letra (l/n/h = baja/nominal/alta) en VIIRS, no como %.
+--------------------------------------------------------------------- */
+const FIRMS_SOURCES = ['VIIRS_SNPP_NRT', 'VIIRS_NOAA20_NRT', 'VIIRS_NOAA21_NRT'];
+const FIRMS_DIAS = 2; // ventana de días hacia atrás (NRT tiene ~3h de latencia)
+
+function parseCsv(text) {
+  const lines = text.trim().split('\n').filter(Boolean);
+  if (lines.length < 2) return []; // solo cabecera o vacío -> sin focos
+  const headers = lines[0].split(',').map(h => h.trim());
+  return lines.slice(1).map(line => {
+    const cols = line.split(',');
+    const row = {};
+    headers.forEach((h, i) => { row[h] = cols[i]; });
+    return row;
+  });
+}
+
+async function fetchFirmsSource(mapKey, source, bbox, dias) {
+  const area = `${bbox.lonMin},${bbox.latMin},${bbox.lonMax},${bbox.latMax}`;
+  const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${area}/${dias}`;
+  const r = await fetchConReintento(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const text = await r.text();
+  // Errores de FIRMS vienen como texto plano ("Invalid MAP_KEY", límite, etc.)
+  if (!text.includes(',')) throw new Error('respuesta inesperada: ' + text.slice(0, 150));
+  return parseCsv(text)
+    .map(row => ({
+      lat: +row.latitude, lon: +row.longitude,
+      confianza: row.confidence ?? null,
+      frp: row.frp != null && row.frp !== '' ? +row.frp : null,
+      fecha: row.acq_date ?? null, hora: row.acq_time ?? null,
+      satelite: row.satellite || source, diaNoche: row.daynight ?? null,
+    }))
+    .filter(p => isFinite(p.lat) && isFinite(p.lon));
+}
+
+async function fetchFirms(mapKey) {
+  const out = [];
+  for (const source of FIRMS_SOURCES) {
+    try {
+      out.push(...await fetchFirmsSource(mapKey, source, GC_BBOX, FIRMS_DIAS));
+    } catch (e) {
+      console.error(`FIRMS ${source} error:`, e.message);
+    }
+  }
+  return out;
+}
+
 async function main() {
   if (!AEMET_API_KEY && !GRAFCAN_API_KEY) {
     console.error('Faltan AEMET_API_KEY / GRAFCAN_API_KEY como variables de entorno.');
@@ -326,6 +380,22 @@ async function main() {
     ], 'riesgo-incendios', sources);
   }
 
+  if (FIRMS_MAP_KEY) {
+    try {
+      const focos = await fetchFirms(FIRMS_MAP_KEY);
+      await writeFile('data/firms.json', JSON.stringify({
+        generatedAt: new Date().toISOString(), diasVentana: FIRMS_DIAS, focos,
+      }, null, 2));
+      sources.firms = { ok: true, count: focos.length };
+      console.log(`FIRMS: ${focos.length} focos activos`);
+    } catch (e) {
+      sources.firms = { ok: false, error: e.message };
+      console.error('FIRMS error:', e.message);
+    }
+  } else {
+    console.log('FIRMS: FIRMS_MAP_KEY no configurada, se omite (opcional).');
+  }
+
   await writeFile('data/stations.json', JSON.stringify({
     generatedAt: new Date().toISOString(),
     sources,
@@ -340,7 +410,7 @@ async function main() {
   }
 }
 
-export { fetchAemet, fetchGrafcan, grafcanClassify, grafcanRank, grafcanToDisplay, grafcanId, grafcanCoords, GC_BBOX, main, fetchAemetImageProduct };
+export { fetchAemet, fetchGrafcan, grafcanClassify, grafcanRank, grafcanToDisplay, grafcanId, grafcanCoords, GC_BBOX, main, fetchAemetImageProduct, parseCsv, fetchFirmsSource, fetchFirms };
 
 // Solo ejecuta main() si se invoca directamente (node fetch-data.mjs), no al
 // importar las funciones desde un test.
