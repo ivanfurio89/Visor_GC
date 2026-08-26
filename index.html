@@ -233,7 +233,7 @@
         <option value="vv">Viento medio (km/h)</option>
         <option value="hr">Humedad relativa (%)</option>
         <option value="prec">Precipitación (mm, últ. 10 min)</option>
-        <option value="dfmc">Humedad comb. muerto (%)</option>
+        <option value="dfmc">Humedad comb. muerto 1h (%)</option>
       </select>
       <div class="legend" id="legendBar"></div>
       <div class="legend-labels"><span id="legMin">min</span><span id="legMax">max</span></div>
@@ -1005,19 +1005,37 @@ function currentValue(s, variable) {
 }
 
 /* ---------------------------------------------------------------------
-   Humedad del combustible fino muerto (HCM / dead fine fuel moisture)
-   Modelo semi-mecanicista de Resco de Dios et al. (2015), aplicado con VPD
-   (Nolan, Resco de Dios et al. 2016):  HCM = FM0 + FM1·e^(−m·VPD)  [%]
-   con VPD = es(T)·(1 − HR/100) [kPa] y es(T)=0.6108·e^(17.27·T/(T+237.3)).
-   OJO: FM0/FM1/m se CALIBRAN por sitio. Estos son los valores generalizados
-   (Nolan et al. 2016) como punto de partida — AJUSTAR para Canarias.
+   Humedad del combustible muerto fino — 1h (Equilibrium Moisture Content)
+   -------------------------------------------------------------------
+   SUSTITUIDO (26/08/2026): el modelo anterior (Resco de Dios/Nolan, con
+   coeficientes que no pude verificar del todo) daba un techo de 58%,
+   irreal — Ivan lo detectó comparándolo con la capa "Humedad 1h" de su
+   herramienta de referencia (WFA) y con la bibliografía: la humedad de
+   equilibrio del combustible muerto fino NO supera el punto de saturación
+   de la fibra, ~25-30% a HR=100% sin lluvia (NWCG/NFDRS).
+
+   Ahora se usa la fórmula de Simard (1968), la EMC estándar del NFDRS
+   (EEUU) — la misma familia de modelo que "Humedad 1h" en herramientas
+   operativas como Wildfire Analyst. Coeficientes exactos y citables:
+     HR<10%:      EMC = 0.03229 + 0.281073·HR − 0.000578·HR·T
+     10%≤HR≤50%:  EMC = 2.22749 + 0.160107·HR − 0.014784·T
+     HR>50%:      EMC = 21.0606 + 0.005565·HR² − 0.00035·HR·T − 0.483199·HR
+   (T en °F, HR en %, EMC en %). Ref.: Simard, A.J. (1968) "The moisture
+   content of forest fuels-1: a review of the basic concepts."
+   Simplificación asumida: es la EMC del aire ambiente, sin la corrección
+   por temperatura de la varilla al sol que aplica el NFDRS completo (no
+   tenemos radiación solar por estación) — igual que el resto del visor,
+   se basa solo en temperatura y humedad del aire.
 --------------------------------------------------------------------- */
-const DFMC = { FM0: 5.43, FM1: 52.91, m: 0.64 };
 function computeDFMC(ta, hr) {
   if (ta == null || hr == null || isNaN(ta) || isNaN(hr)) return null;
-  const es = 0.6108 * Math.exp(17.27 * ta / (ta + 237.3));   // presión de vapor de saturación (kPa)
-  const vpd = Math.max(0, es * (1 - hr / 100));               // déficit de presión de vapor (kPa)
-  return +(DFMC.FM0 + DFMC.FM1 * Math.exp(-DFMC.m * vpd)).toFixed(1);
+  const h = Math.max(0, Math.min(100, hr));
+  const tF = ta * 9 / 5 + 32; // Simard usa temperatura en Fahrenheit
+  let emc;
+  if (h < 10) emc = 0.03229 + 0.281073 * h - 0.000578 * h * tF;
+  else if (h <= 50) emc = 2.22749 + 0.160107 * h - 0.014784 * tF;
+  else emc = 21.0606 + 0.005565 * h * h - 0.00035 * h * tF - 0.483199 * h;
+  return +Math.max(1, emc).toFixed(1); // suelo de 1%: fuera del rango validado de la fórmula por debajo
 }
 
 // Valor de una variable (incluidas las DERIVADAS como 'dfmc') respetando el tiempo.
@@ -1041,7 +1059,7 @@ const VAR_DOMAIN = {
   vv: { min: 0, max: 60 },      // km/h viento medio
   hr: { min: 0, max: 100 },     // % — rango natural completo
   prec: { min: 0, max: 20 },    // mm en 10 min — la mayoría de lecturas son 0
-  dfmc: { min: DFMC.FM0, max: DFMC.FM0 + DFMC.FM1 }, // límites propios del modelo
+  dfmc: { min: 1, max: 30 },    // %: punto de saturación de la fibra (NWCG/NFDRS) como techo
 };
 function domainFor(variable) { return VAR_DOMAIN[variable] || null; }
 
@@ -1173,7 +1191,7 @@ function popupHtml(s, activeVar) {
         ${row('Viento', s.vv, ' km/h', 'vv')}
         ${row('Dirección', s.dv, '°', 'dv')}
         ${row('Precipitación', s.prec, ' mm', 'prec')}
-        ${row('HCM (comb. muerto)', computeDFMC(s.ta, s.hr), ' %', 'dfmc')}
+        ${row('Humedad comb. muerto 1h', computeDFMC(s.ta, s.hr), ' %', 'dfmc')}
       </table>
       <div class="src">${s.source}${s.fint ? ' · ' + s.fint.replace('T',' ').slice(0,16) : ''}</div>
     </div>`;
