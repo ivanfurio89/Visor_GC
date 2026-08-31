@@ -1,16 +1,5 @@
 {
-  "generatedAt": "2026-08-30T22:46:38.577Z",
+  "generatedAt": "2026-08-31T01:16:35.020Z",
   "diasVentana": 2,
-  "focos": [
-    {
-      "lat": 27.86688,
-      "lon": -15.42689,
-      "confianza": "l",
-      "frp": 1.49,
-      "fecha": "2026-08-29",
-      "hora": "1416",
-      "satelite": "N20",
-      "diaNoche": "D"
-    }
-  ]
+  "focos": []
 }
