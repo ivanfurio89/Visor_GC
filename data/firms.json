@@ -1,5 +1,76 @@
 {
-  "generatedAt": "2026-09-14T19:09:47.054Z",
+  "generatedAt": "2026-09-14T22:31:56.807Z",
   "diasVentana": 2,
-  "focos": []
+  "focos": [
+    {
+      "lat": 27.95034,
+      "lon": -15.51716,
+      "confianza": "n",
+      "frp": 4.45,
+      "fecha": "2026-09-14",
+      "hora": "1355",
+      "satelite": "N",
+      "diaNoche": "D"
+    },
+    {
+      "lat": 27.95441,
+      "lon": -15.51811,
+      "confianza": "n",
+      "frp": 4.29,
+      "fecha": "2026-09-14",
+      "hora": "1355",
+      "satelite": "N",
+      "diaNoche": "D"
+    },
+    {
+      "lat": 27.95308,
+      "lon": -15.51924,
+      "confianza": "n",
+      "frp": 3.29,
+      "fecha": "2026-09-14",
+      "hora": "1416",
+      "satelite": "N20",
+      "diaNoche": "D"
+    },
+    {
+      "lat": 27.95367,
+      "lon": -15.51533,
+      "confianza": "l",
+      "frp": 3.29,
+      "fecha": "2026-09-14",
+      "hora": "1416",
+      "satelite": "N20",
+      "diaNoche": "D"
+    },
+    {
+      "lat": 27.94934,
+      "lon": -15.51829,
+      "confianza": "n",
+      "frp": 5.75,
+      "fecha": "2026-09-14",
+      "hora": "1321",
+      "satelite": "N21",
+      "diaNoche": "D"
+    },
+    {
+      "lat": 27.95489,
+      "lon": -15.51783,
+      "confianza": "n",
+      "frp": 15.43,
+      "fecha": "2026-09-14",
+      "hora": "1321",
+      "satelite": "N21",
+      "diaNoche": "D"
+    },
+    {
+      "lat": 27.95517,
+      "lon": -15.5197,
+      "confianza": "n",
+      "frp": 5.75,
+      "fecha": "2026-09-14",
+      "hora": "1321",
+      "satelite": "N21",
+      "diaNoche": "D"
+    }
+  ]
 }
