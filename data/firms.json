@@ -1,36 +1,5 @@
 {
-  "generatedAt": "2026-10-15T22:37:46.555Z",
+  "generatedAt": "2026-10-16T00:48:23.082Z",
   "diasVentana": 2,
-  "focos": [
-    {
-      "lat": 27.83538,
-      "lon": -15.46198,
-      "confianza": "n",
-      "frp": 1.07,
-      "fecha": "2026-10-14",
-      "hora": "317",
-      "satelite": "N",
-      "diaNoche": "N"
-    },
-    {
-      "lat": 27.83621,
-      "lon": -15.46339,
-      "confianza": "n",
-      "frp": 2.93,
-      "fecha": "2026-10-14",
-      "hora": "241",
-      "satelite": "N21",
-      "diaNoche": "N"
-    },
-    {
-      "lat": 27.82145,
-      "lon": -15.46951,
-      "confianza": "l",
-      "frp": 2.58,
-      "fecha": "2026-10-14",
-      "hora": "1357",
-      "satelite": "N21",
-      "diaNoche": "D"
-    }
-  ]
+  "focos": []
 }
