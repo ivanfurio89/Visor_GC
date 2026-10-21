@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-21T20:31:50.760Z",
+  "generatedAt": "2026-10-21T23:41:11.324Z",
   "sources": {
     "aemet": {
       "ok": false,
-      "error": "petición inicial falló (401)"
+      "error": "no se pudo descargar el JSON de datos (500)"
     },
     "grafcan": {
       "ok": true,
@@ -11,7 +11,7 @@
     },
     "radar": {
       "ok": true,
-      "bytes": 13280,
+      "bytes": 8011,
       "path": "red/radar/regional/ca",
       "intentos": []
     },
@@ -33,11 +33,11 @@
       "lat": 28.046164785953497,
       "lon": -15.725632187575213,
       "source": "GRAFCAN",
-      "ta": 22.41,
-      "hr": 73.98,
-      "vv": 4.4,
-      "dv": 97.18,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-21T18:50:00"
     },
     {
@@ -46,11 +46,11 @@
       "lat": 28.14059497904326,
       "lon": -15.63233351579239,
       "source": "GRAFCAN",
-      "ta": 20.31,
-      "hr": 84.74,
-      "vv": 14.6,
-      "dv": 66.92,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-21T18:50:00"
     },
     {
@@ -59,11 +59,11 @@
       "lat": 28.107409919574643,
       "lon": -15.584156541632426,
       "source": "GRAFCAN",
-      "ta": 17.8,
-      "hr": 92.22,
-      "vv": 10,
-      "dv": 102.35,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-21T18:50:00"
     },
     {
@@ -72,11 +72,11 @@
       "lat": 28.15071547311954,
       "lon": -15.42064990988915,
       "source": "GRAFCAN",
-      "ta": 21.58,
-      "hr": 86.87,
-      "vv": 7.7,
-      "dv": 60.63,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-21T19:00:00"
     },
     {
@@ -85,11 +85,11 @@
       "lat": 27.88679722612621,
       "lon": -15.563562172392002,
       "source": "GRAFCAN",
-      "ta": 17.91,
-      "hr": 87,
-      "vv": 9.7,
-      "dv": 60.39,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-21T18:50:00"
     },
     {
@@ -111,11 +111,11 @@
       "lat": 27.883128287956577,
       "lon": -15.72237060234272,
       "source": "GRAFCAN",
-      "ta": 22.11,
-      "hr": 75.37,
-      "vv": 2.8,
-      "dv": 358.37,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-21T18:50:00"
     },
     {
@@ -150,11 +150,11 @@
       "lat": 28.01030936270712,
       "lon": -15.68235121750555,
       "source": "GRAFCAN",
-      "ta": 16.2,
-      "hr": 91.21,
-      "vv": 1.9,
-      "dv": 254.32,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-21T18:50:00"
     },
     {
@@ -163,11 +163,11 @@
       "lat": 27.99939025248747,
       "lon": -15.414397120966504,
       "source": "GRAFCAN",
-      "ta": 20.7,
-      "hr": 100,
-      "vv": 5.6,
-      "dv": 173.05,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-21T19:00:00"
     },
     {
