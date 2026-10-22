@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-21T23:41:11.324Z",
+  "generatedAt": "2026-10-22T01:55:45.658Z",
   "sources": {
     "aemet": {
       "ok": false,
-      "error": "no se pudo descargar el JSON de datos (500)"
+      "error": "petición inicial falló (401)"
     },
     "grafcan": {
       "ok": true,
@@ -11,13 +11,13 @@
     },
     "radar": {
       "ok": true,
-      "bytes": 8011,
+      "bytes": 7150,
       "path": "red/radar/regional/ca",
       "intentos": []
     },
     "riesgo-incendios": {
       "ok": true,
-      "bytes": 83287,
+      "bytes": 83850,
       "path": "incendios/mapasriesgo/previsto/dia/1/area/c",
       "intentos": []
     },
