@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-24T17:00:17.443Z",
+  "generatedAt": "2026-10-24T19:30:54.332Z",
   "sources": {
     "aemet": {
       "ok": false,
-      "error": "no se pudo descargar el JSON de datos (500)"
+      "error": "petición inicial falló (401)"
     },
     "grafcan": {
       "ok": true,
@@ -11,24 +11,22 @@
     },
     "radar": {
       "ok": true,
-      "bytes": 6290,
+      "bytes": 6288,
       "path": "red/radar/regional/ca",
       "intentos": []
     },
     "riesgo-incendios": {
-      "ok": false,
+      "ok": true,
+      "bytes": 84760,
+      "path": "incendios/mapasriesgo/estimado/area/c",
       "intentos": [
         {
           "path": "incendios/mapasriesgo/previsto/dia/1/area/c",
-          "error": "no se pudo descargar la imagen (500)"
-        },
-        {
-          "path": "incendios/mapasriesgo/previsto/dia/0/area/c",
           "error": "petición inicial falló (401)"
         },
         {
-          "path": "incendios/mapasriesgo/estimado/area/c",
-          "error": "sin \"datos\" (estado 404: No hay datos que satisfagan esos criterios)"
+          "path": "incendios/mapasriesgo/previsto/dia/0/area/c",
+          "error": "sin \"datos\" (estado 404: El valor para el d?a debe ser entre 1 y 7.)"
         }
       ]
     },
@@ -44,12 +42,12 @@
       "lat": 28.046164785953497,
       "lon": -15.725632187575213,
       "source": "GRAFCAN",
-      "ta": 25.99,
-      "hr": 63.94,
-      "vv": 6.9,
-      "dv": 192.24,
+      "ta": 23.97,
+      "hr": 69.26,
+      "vv": 4.4,
+      "dv": 160.95,
       "prec": 0,
-      "fint": "2026-10-24T16:40:00"
+      "fint": "2026-10-24T19:20:00"
     },
     {
       "id": "grafcan-7",
@@ -57,12 +55,12 @@
       "lat": 28.14059497904326,
       "lon": -15.63233351579239,
       "source": "GRAFCAN",
-      "ta": 21.91,
-      "hr": 87.68,
-      "vv": 16.8,
-      "dv": 49.37,
+      "ta": 21.62,
+      "hr": 88.89,
+      "vv": 13.7,
+      "dv": 72.94,
       "prec": 0,
-      "fint": "2026-10-24T16:50:00"
+      "fint": "2026-10-24T19:20:00"
     },
     {
       "id": "grafcan-10",
@@ -70,12 +68,12 @@
       "lat": 28.107409919574643,
       "lon": -15.584156541632426,
       "source": "GRAFCAN",
-      "ta": 19.42,
-      "hr": 95.66,
-      "vv": 8.4,
-      "dv": 100.57,
+      "ta": 19.22,
+      "hr": 94.18,
+      "vv": 9.1,
+      "dv": 134.78,
       "prec": 0,
-      "fint": "2026-10-24T16:40:00"
+      "fint": "2026-10-24T17:50:00"
     },
     {
       "id": "grafcan-14",
@@ -83,12 +81,12 @@
       "lat": 28.15071547311954,
       "lon": -15.42064990988915,
       "source": "GRAFCAN",
-      "ta": 24.38,
-      "hr": 78.79,
-      "vv": 10,
-      "dv": 20.31,
+      "ta": 23.5,
+      "hr": 83.06,
+      "vv": 7.8,
+      "dv": 349.3,
       "prec": 0,
-      "fint": "2026-10-24T16:50:00"
+      "fint": "2026-10-24T19:20:00"
     },
     {
       "id": "grafcan-15",
@@ -96,12 +94,12 @@
       "lat": 27.88679722612621,
       "lon": -15.563562172392002,
       "source": "GRAFCAN",
-      "ta": 27.39,
-      "hr": 42.98,
-      "vv": 7.6,
-      "dv": 331.43,
+      "ta": 26.2,
+      "hr": 44.47,
+      "vv": 9.5,
+      "dv": 4.68,
       "prec": 0,
-      "fint": "2026-10-24T16:50:00"
+      "fint": "2026-10-24T19:20:00"
     },
     {
       "id": "grafcan-19",
@@ -122,12 +120,12 @@
       "lat": 27.883128287956577,
       "lon": -15.72237060234272,
       "source": "GRAFCAN",
-      "ta": 25.55,
-      "hr": 69.91,
-      "vv": 12.3,
-      "dv": 235.9,
+      "ta": 23.22,
+      "hr": 82,
+      "vv": 3.1,
+      "dv": 241.72,
       "prec": 0,
-      "fint": "2026-10-24T16:40:00"
+      "fint": "2026-10-24T19:10:00"
     },
     {
       "id": "grafcan-25",
@@ -135,12 +133,12 @@
       "lat": 28.003039965805883,
       "lon": -15.540719012113314,
       "source": "GRAFCAN",
-      "ta": 16.86,
-      "hr": 74.16,
-      "vv": 2,
-      "dv": 271.77,
+      "ta": 15.34,
+      "hr": 73.95,
+      "vv": 5,
+      "dv": 154.7,
       "prec": 0,
-      "fint": "2026-10-24T16:40:00"
+      "fint": "2026-10-24T19:20:00"
     },
     {
       "id": "grafcan-27",
@@ -161,12 +159,12 @@
       "lat": 28.01030936270712,
       "lon": -15.68235121750555,
       "source": "GRAFCAN",
-      "ta": 25.57,
-      "hr": 58.55,
-      "vv": 3.8,
-      "dv": 306.07,
+      "ta": 21.17,
+      "hr": 63.03,
+      "vv": 13.6,
+      "dv": 65.63,
       "prec": 0,
-      "fint": "2026-10-24T16:40:00"
+      "fint": "2026-10-24T19:10:00"
     },
     {
       "id": "grafcan-42",
@@ -174,12 +172,12 @@
       "lat": 27.99939025248747,
       "lon": -15.414397120966504,
       "source": "GRAFCAN",
-      "ta": 22.52,
-      "hr": 77.91,
-      "vv": 16.3,
-      "dv": 183.53,
+      "ta": 21.99,
+      "hr": 79.62,
+      "vv": 12.7,
+      "dv": 160.03,
       "prec": 0,
-      "fint": "2026-10-24T16:50:00"
+      "fint": "2026-10-24T19:20:00"
     },
     {
       "id": "grafcan-43",
