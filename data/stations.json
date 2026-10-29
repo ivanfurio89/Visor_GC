@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T18:53:09.186Z",
+  "generatedAt": "2026-10-29T23:11:01.056Z",
   "sources": {
     "aemet": {
       "ok": false,
@@ -11,12 +11,14 @@
     },
     "radar": {
       "ok": true,
-      "bytes": 6225,
+      "bytes": 6210,
       "path": "red/radar/regional/ca",
       "intentos": []
     },
     "riesgo-incendios": {
-      "ok": false,
+      "ok": true,
+      "bytes": 84679,
+      "path": "incendios/mapasriesgo/estimado/area/c",
       "intentos": [
         {
           "path": "incendios/mapasriesgo/previsto/dia/1/area/c",
@@ -24,10 +26,6 @@
         },
         {
           "path": "incendios/mapasriesgo/previsto/dia/0/area/c",
-          "error": "petición inicial falló (401)"
-        },
-        {
-          "path": "incendios/mapasriesgo/estimado/area/c",
           "error": "petición inicial falló (401)"
         }
       ]
