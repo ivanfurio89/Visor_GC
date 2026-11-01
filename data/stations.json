@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-31T23:39:23.183Z",
+  "generatedAt": "2026-11-01T02:38:05.470Z",
   "sources": {
     "aemet": {
       "ok": false,
@@ -10,13 +10,10 @@
       "count": 12
     },
     "radar": {
-      "ok": false,
-      "intentos": [
-        {
-          "path": "red/radar/regional/ca",
-          "error": "no se pudo descargar la imagen (500)"
-        }
-      ]
+      "ok": true,
+      "bytes": 12588,
+      "path": "red/radar/regional/ca",
+      "intentos": []
     },
     "riesgo-incendios": {
       "ok": false,
@@ -86,11 +83,11 @@
       "lat": 28.15071547311954,
       "lon": -15.42064990988915,
       "source": "GRAFCAN",
-      "ta": 23.55,
-      "hr": 89,
-      "vv": 3.6,
-      "dv": 132.55,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-31T20:40:00"
     },
     {
@@ -177,11 +174,11 @@
       "lat": 27.99939025248747,
       "lon": -15.414397120966504,
       "source": "GRAFCAN",
-      "ta": 22.04,
-      "hr": 88.36,
-      "vv": 3.7,
-      "dv": 271.59,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-31T20:40:00"
     },
     {
@@ -190,11 +187,11 @@
       "lat": 27.933180170777817,
       "lon": -15.730398766405795,
       "source": "GRAFCAN",
-      "ta": 19.85,
-      "hr": 50.69,
-      "vv": 2.2,
-      "dv": 233.09,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-10-31T20:40:00"
     }
   ]
