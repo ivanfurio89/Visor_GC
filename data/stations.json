@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T16:42:39.416Z",
+  "generatedAt": "2026-11-05T22:23:36.967Z",
   "sources": {
     "aemet": {
       "ok": false,
@@ -10,13 +10,10 @@
       "count": 12
     },
     "radar": {
-      "ok": false,
-      "intentos": [
-        {
-          "path": "red/radar/regional/ca",
-          "error": "no se pudo descargar la imagen (500)"
-        }
-      ]
+      "ok": true,
+      "bytes": 6218,
+      "path": "red/radar/regional/ca",
+      "intentos": []
     },
     "riesgo-incendios": {
       "ok": false,
@@ -27,11 +24,11 @@
         },
         {
           "path": "incendios/mapasriesgo/previsto/dia/0/area/c",
-          "error": "petición inicial falló (401)"
+          "error": "sin \"datos\" (estado 404: El valor para el d?a debe ser entre 1 y 7.)"
         },
         {
           "path": "incendios/mapasriesgo/estimado/area/c",
-          "error": "petición inicial falló (401)"
+          "error": "no se pudo descargar la imagen (500)"
         }
       ]
     },
@@ -47,11 +44,11 @@
       "lat": 28.046164785953497,
       "lon": -15.725632187575213,
       "source": "GRAFCAN",
-      "ta": 25.02,
-      "hr": 68.1,
-      "vv": 5.9,
-      "dv": 300.89,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-11-05T14:10:00"
     },
     {
@@ -60,11 +57,11 @@
       "lat": 28.14059497904326,
       "lon": -15.63233351579239,
       "source": "GRAFCAN",
-      "ta": 24.03,
-      "hr": 69.92,
-      "vv": 12.1,
-      "dv": 252.17,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-11-05T14:10:00"
     },
     {
@@ -86,11 +83,11 @@
       "lat": 28.15071547311954,
       "lon": -15.42064990988915,
       "source": "GRAFCAN",
-      "ta": 24.97,
-      "hr": 77.56,
-      "vv": 8.9,
-      "dv": 258.88,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-11-05T14:10:00"
     },
     {
@@ -99,11 +96,11 @@
       "lat": 27.88679722612621,
       "lon": -15.563562172392002,
       "source": "GRAFCAN",
-      "ta": 23.96,
-      "hr": 48.21,
-      "vv": 10,
-      "dv": 198.82,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-11-05T14:10:00"
     },
     {
@@ -125,11 +122,11 @@
       "lat": 27.883128287956577,
       "lon": -15.72237060234272,
       "source": "GRAFCAN",
-      "ta": 25.27,
-      "hr": 47.25,
-      "vv": 10,
-      "dv": 223.24,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-11-05T14:00:00"
     },
     {
@@ -138,11 +135,11 @@
       "lat": 28.003039965805883,
       "lon": -15.540719012113314,
       "source": "GRAFCAN",
-      "ta": 18.37,
-      "hr": 67.89,
-      "vv": 5.8,
-      "dv": 307.7,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-11-05T14:10:00"
     },
     {
@@ -164,11 +161,11 @@
       "lat": 28.01030936270712,
       "lon": -15.68235121750555,
       "source": "GRAFCAN",
-      "ta": 21.42,
-      "hr": 48.28,
-      "vv": 11.9,
-      "dv": 263.41,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-11-05T14:00:00"
     },
     {
@@ -177,11 +174,11 @@
       "lat": 27.99939025248747,
       "lon": -15.414397120966504,
       "source": "GRAFCAN",
-      "ta": 24.11,
-      "hr": 65.8,
-      "vv": 7.5,
-      "dv": 232.66,
-      "prec": 0,
+      "ta": null,
+      "hr": null,
+      "vv": null,
+      "dv": null,
+      "prec": null,
       "fint": "2026-11-05T14:10:00"
     },
     {
