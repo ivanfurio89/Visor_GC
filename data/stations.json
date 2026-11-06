@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T22:23:36.967Z",
+  "generatedAt": "2026-11-06T02:45:35.149Z",
   "sources": {
     "aemet": {
       "ok": false,
@@ -11,7 +11,7 @@
     },
     "radar": {
       "ok": true,
-      "bytes": 6218,
+      "bytes": 6387,
       "path": "red/radar/regional/ca",
       "intentos": []
     },
