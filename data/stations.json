@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-10T16:18:11.387Z",
+  "generatedAt": "2026-11-10T21:53:53.149Z",
   "sources": {
     "aemet": {
       "ok": false,
@@ -10,19 +10,27 @@
       "count": 12
     },
     "radar": {
+      "ok": true,
+      "bytes": 6914,
+      "path": "red/radar/regional/ca",
+      "intentos": []
+    },
+    "riesgo-incendios": {
       "ok": false,
       "intentos": [
         {
-          "path": "red/radar/regional/ca",
+          "path": "incendios/mapasriesgo/previsto/dia/1/area/c",
+          "error": "petición inicial falló (401)"
+        },
+        {
+          "path": "incendios/mapasriesgo/previsto/dia/0/area/c",
+          "error": "petición inicial falló (401)"
+        },
+        {
+          "path": "incendios/mapasriesgo/estimado/area/c",
           "error": "petición inicial falló (401)"
         }
       ]
-    },
-    "riesgo-incendios": {
-      "ok": true,
-      "bytes": 83450,
-      "path": "incendios/mapasriesgo/previsto/dia/1/area/c",
-      "intentos": []
     },
     "firms": {
       "ok": true,
@@ -36,12 +44,12 @@
       "lat": 28.046164785953497,
       "lon": -15.725632187575213,
       "source": "GRAFCAN",
-      "ta": 26.05,
-      "hr": 54.24,
-      "vv": 9.5,
-      "dv": 318.03,
+      "ta": 24.76,
+      "hr": 58.65,
+      "vv": 6.6,
+      "dv": 333.74,
       "prec": 0,
-      "fint": "2026-11-10T16:00:00"
+      "fint": "2026-11-10T21:30:00"
     },
     {
       "id": "grafcan-7",
@@ -49,12 +57,12 @@
       "lat": 28.14059497904326,
       "lon": -15.63233351579239,
       "source": "GRAFCAN",
-      "ta": 23.13,
-      "hr": 76.14,
-      "vv": 10.4,
-      "dv": 4.03,
+      "ta": 22.76,
+      "hr": 75.12,
+      "vv": 2.4,
+      "dv": 98.05,
       "prec": 0,
-      "fint": "2026-11-10T16:00:00"
+      "fint": "2026-11-10T21:40:00"
     },
     {
       "id": "grafcan-10",
@@ -62,12 +70,12 @@
       "lat": 28.107409919574643,
       "lon": -15.584156541632426,
       "source": "GRAFCAN",
-      "ta": 21.98,
+      "ta": 19.73,
       "hr": 0,
-      "vv": 4.3,
-      "dv": 38.15,
+      "vv": 3.4,
+      "dv": 292.8,
       "prec": 0,
-      "fint": "2026-11-10T16:00:00"
+      "fint": "2026-11-10T21:30:00"
     },
     {
       "id": "grafcan-14",
@@ -75,12 +83,12 @@
       "lat": 28.15071547311954,
       "lon": -15.42064990988915,
       "source": "GRAFCAN",
-      "ta": 25.18,
-      "hr": 75.61,
-      "vv": 4.6,
-      "dv": 11.18,
+      "ta": 24.17,
+      "hr": 79,
+      "vv": 3.6,
+      "dv": 306.48,
       "prec": 0,
-      "fint": "2026-11-10T16:10:00"
+      "fint": "2026-11-10T21:40:00"
     },
     {
       "id": "grafcan-15",
@@ -114,12 +122,12 @@
       "lat": 27.883128287956577,
       "lon": -15.72237060234272,
       "source": "GRAFCAN",
-      "ta": 22.95,
-      "hr": 70.7,
-      "vv": 13.6,
-      "dv": 236.97,
+      "ta": 21.74,
+      "hr": 80.94,
+      "vv": 2.2,
+      "dv": 274.64,
       "prec": 0,
-      "fint": "2026-11-10T16:00:00"
+      "fint": "2026-11-10T21:30:00"
     },
     {
       "id": "grafcan-25",
@@ -127,12 +135,12 @@
       "lat": 28.003039965805883,
       "lon": -15.540719012113314,
       "source": "GRAFCAN",
-      "ta": 17.93,
-      "hr": 68.48,
-      "vv": 3.3,
-      "dv": 323.33,
+      "ta": 16.98,
+      "hr": 57.97,
+      "vv": 2.9,
+      "dv": 268.92,
       "prec": 0,
-      "fint": "2026-11-10T16:00:00"
+      "fint": "2026-11-10T21:30:00"
     },
     {
       "id": "grafcan-27",
@@ -153,12 +161,12 @@
       "lat": 28.01030936270712,
       "lon": -15.68235121750555,
       "source": "GRAFCAN",
-      "ta": 19.54,
-      "hr": 66.47,
-      "vv": 3.9,
-      "dv": 243.58,
+      "ta": 17.11,
+      "hr": 77.29,
+      "vv": 6.8,
+      "dv": 258.9,
       "prec": 0,
-      "fint": "2026-11-10T16:00:00"
+      "fint": "2026-11-10T21:30:00"
     },
     {
       "id": "grafcan-42",
@@ -166,12 +174,12 @@
       "lat": 27.99939025248747,
       "lon": -15.414397120966504,
       "source": "GRAFCAN",
-      "ta": 24.76,
-      "hr": 56.02,
-      "vv": 5.7,
-      "dv": 177.31,
+      "ta": 22.1,
+      "hr": 74.33,
+      "vv": 6,
+      "dv": 128.2,
       "prec": 0,
-      "fint": "2026-11-10T16:10:00"
+      "fint": "2026-11-10T21:40:00"
     },
     {
       "id": "grafcan-43",
