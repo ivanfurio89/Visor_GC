@@ -1,19 +1,22 @@
 {
-  "generatedAt": "2026-11-23T03:13:12.964Z",
+  "generatedAt": "2026-11-23T13:10:16.277Z",
   "sources": {
     "aemet": {
       "ok": false,
       "error": "petición inicial falló (401)"
     },
     "grafcan": {
-      "ok": true,
-      "count": 12
+      "ok": false,
+      "error": "HTTP 500 en https://sensores.grafcan.es/api/v1.0/locations/?page_size=1000 — \n<!doctype html>\n<html lang=\"en\">\n<head>\n  <title>Server Error (500)</title>\n</head>\n<body>\n  <h1>Server Error (500)</h1><p></p>\n</body>\n</html>\n"
     },
     "radar": {
-      "ok": true,
-      "bytes": 6221,
-      "path": "red/radar/regional/ca",
-      "intentos": []
+      "ok": false,
+      "intentos": [
+        {
+          "path": "red/radar/regional/ca",
+          "error": "no se pudo descargar la imagen (500)"
+        }
+      ]
     },
     "riesgo-incendios": {
       "ok": false,
@@ -28,7 +31,7 @@
         },
         {
           "path": "incendios/mapasriesgo/estimado/area/c",
-          "error": "no se pudo descargar la imagen (500)"
+          "error": "sin \"datos\" (estado 404: No hay datos que satisfagan esos criterios)"
         }
       ]
     },
@@ -37,162 +40,5 @@
       "count": 0
     }
   },
-  "stations": [
-    {
-      "id": "grafcan-2",
-      "name": "Gran Canaria, Agaete, El Risco (109 m)",
-      "lat": 28.046164785953497,
-      "lon": -15.725632187575213,
-      "source": "GRAFCAN",
-      "ta": 20.56,
-      "hr": 67.81,
-      "vv": 3.9,
-      "dv": 75.22,
-      "prec": 0,
-      "fint": "2026-11-23T03:00:00"
-    },
-    {
-      "id": "grafcan-7",
-      "name": "Gran Canaria, Santa María de Guía, Guía (170 m)",
-      "lat": 28.14059497904326,
-      "lon": -15.63233351579239,
-      "source": "GRAFCAN",
-      "ta": 20.31,
-      "hr": 90.81,
-      "vv": 13.8,
-      "dv": 75.52,
-      "prec": 0,
-      "fint": "2026-11-23T03:00:00"
-    },
-    {
-      "id": "grafcan-10",
-      "name": "Gran Canaria, Moya, Villa de Moya (486 m)",
-      "lat": 28.107409919574643,
-      "lon": -15.584156541632426,
-      "source": "GRAFCAN",
-      "ta": 16.45,
-      "hr": 0,
-      "vv": 7.5,
-      "dv": 181.91,
-      "prec": 0,
-      "fint": "2026-11-23T03:00:00"
-    },
-    {
-      "id": "grafcan-14",
-      "name": "Gran Canaria, Las Palmas de Gran Canaria, La Isleta (6 m)",
-      "lat": 28.15071547311954,
-      "lon": -15.42064990988915,
-      "source": "GRAFCAN",
-      "ta": 22.2,
-      "hr": 85,
-      "vv": 3,
-      "dv": 5.1,
-      "prec": 0,
-      "fint": "2026-11-23T03:00:00"
-    },
-    {
-      "id": "grafcan-15",
-      "name": "Gran Canaria, San Bartolomé de Tirajana, Fataga (602 m)",
-      "lat": 27.88679722612621,
-      "lon": -15.563562172392002,
-      "source": "GRAFCAN",
-      "ta": 21.4,
-      "hr": 46.21,
-      "vv": 7.6,
-      "dv": 23.56,
-      "prec": 0,
-      "fint": "2026-11-23T03:00:00"
-    },
-    {
-      "id": "grafcan-19",
-      "name": "Gran Canaria, Arucas, Los Portales (450 m)",
-      "lat": 28.09566411039148,
-      "lon": -15.534426598073297,
-      "source": "GRAFCAN",
-      "ta": null,
-      "hr": null,
-      "vv": null,
-      "dv": null,
-      "prec": null,
-      "fint": "2022-07-15T07:40:00"
-    },
-    {
-      "id": "grafcan-20",
-      "name": "Gran Canaria, Mogán, Mogán (281 m)",
-      "lat": 27.883128287956577,
-      "lon": -15.72237060234272,
-      "source": "GRAFCAN",
-      "ta": 18.89,
-      "hr": 80.11,
-      "vv": 4.7,
-      "dv": 144.28,
-      "prec": 0,
-      "fint": "2026-11-23T02:50:00"
-    },
-    {
-      "id": "grafcan-25",
-      "name": "Gran Canaria, Vega de San Mateo, La Montañeta (946 m)",
-      "lat": 28.003039965805883,
-      "lon": -15.540719012113314,
-      "source": "GRAFCAN",
-      "ta": 17.81,
-      "hr": 23.82,
-      "vv": 10.8,
-      "dv": 134.19,
-      "prec": 0,
-      "fint": "2026-11-23T03:00:00"
-    },
-    {
-      "id": "grafcan-27",
-      "name": "Gran Canaria, Santa Lucía de Tirajana, Vecindario (94 m)",
-      "lat": 27.857672401074392,
-      "lon": -15.444082954808087,
-      "source": "GRAFCAN",
-      "ta": null,
-      "hr": null,
-      "vv": null,
-      "dv": null,
-      "prec": null,
-      "fint": "2026-01-26T14:00:00"
-    },
-    {
-      "id": "grafcan-41",
-      "name": "Gran Canaria, Artenara, Acusa (963 m)",
-      "lat": 28.01030936270712,
-      "lon": -15.68235121750555,
-      "source": "GRAFCAN",
-      "ta": 18.59,
-      "hr": 41.22,
-      "vv": 4.3,
-      "dv": 67.3,
-      "prec": 0,
-      "fint": "2026-11-23T02:50:00"
-    },
-    {
-      "id": "grafcan-42",
-      "name": "Gran Canaria, Telde, San Juan (130 m)",
-      "lat": 27.99939025248747,
-      "lon": -15.414397120966504,
-      "source": "GRAFCAN",
-      "ta": 20.37,
-      "hr": 81.69,
-      "vv": 6.5,
-      "dv": 134.21,
-      "prec": 0,
-      "fint": "2026-11-23T03:00:00"
-    },
-    {
-      "id": "grafcan-43",
-      "name": "Gran Canaria, Mogán, Reserva Integral de Inagua (965 m)",
-      "lat": 27.933180170777817,
-      "lon": -15.730398766405795,
-      "source": "GRAFCAN",
-      "ta": null,
-      "hr": null,
-      "vv": null,
-      "dv": null,
-      "prec": null,
-      "fint": "2026-11-22T20:30:00"
-    }
-  ]
+  "stations": []
 }
